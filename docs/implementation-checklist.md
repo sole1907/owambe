@@ -7,17 +7,19 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 ---
 
 ## Chunk 1 — Project Setup & Monorepo Structure ✅
+
 - [x] Initialise Next.js app (`/web`)
 - [x] Initialise backend API (`/api`) — NestJS
 - [x] Set up monorepo structure (npm workspaces)
 - [x] Configure ESLint, Prettier, TypeScript for both apps
-- [ ] Set up GitHub repo and connect Vercel (frontend) and Render (backend)
+- [x] Set up GitHub repo and connect Vercel (frontend) and Render (backend)
 - [x] Add `.env.example` files for both apps with all required keys
 
 ---
 
 ## Chunk 2 — Database Schema & Migrations ✅
-- [ ] Create Supabase project (manual — needs your account)
+
+- [x] Create Supabase project (manual — needs your account)
 - [x] Write migration: `users` table
 - [x] Write migration: `events` table + `event_plans` + `checklist_items`
 - [x] Write migration: `vendors` table
@@ -32,18 +34,20 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 
 ---
 
-## Chunk 3 — Authentication
-- [ ] Configure Supabase Auth (email/password)
-- [ ] Backend: auth middleware (JWT validation)
-- [ ] Backend: role-based access control (user vs admin)
-- [ ] Frontend: sign up page
-- [ ] Frontend: log in page
-- [ ] Frontend: protected route wrapper
-- [ ] Frontend: session persistence + logout
+## Chunk 3 — Authentication ✅
+
+- [x] Configure Supabase Auth (email/password)
+- [x] Backend: auth middleware (JWT validation)
+- [x] Backend: role-based access control (user vs admin)
+- [x] Frontend: sign up page
+- [x] Frontend: log in page
+- [x] Frontend: protected route wrapper
+- [x] Frontend: session persistence + logout
 
 ---
 
 ## Chunk 4 — Event Onboarding Questionnaire (Frontend)
+
 - [ ] Build step-by-step questionnaire UI (one question per screen)
 - [ ] Questions: event type, date, location, guest count, budget, style/theme, existing vendors
 - [ ] Progress indicator
@@ -53,6 +57,7 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 ---
 
 ## Chunk 5 — Event Plan Generation (Backend)
+
 - [ ] API endpoint: `POST /events/generate-plan`
 - [ ] Accept questionnaire answers as input
 - [ ] Rule-based checklist generation (based on event type + timeline)
@@ -65,6 +70,7 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 ---
 
 ## Chunk 6 — Event Plan Display & Management (Frontend)
+
 - [ ] Display generated checklist (checkable items)
 - [ ] Display proposed event plan (budget breakdown, milestones)
 - [ ] Allow host to edit checklist items (add, remove, rename)
@@ -74,6 +80,7 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 ---
 
 ## Chunk 7 — Vendor Seed Data & Discovery (Backend + Frontend)
+
 - [ ] Seed 20–30 vendor records in DB (name, category, location, price range, rating, photos, contact)
 - [ ] API endpoint: `GET /vendors` (with filters: category, location, budget)
 - [ ] Vendor recommendation endpoint: `GET /events/:id/recommended-vendors`
@@ -88,6 +95,7 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 ---
 
 ## Chunk 8 — Guest List Management (Backend + Frontend)
+
 - [ ] API: `POST /events/:id/guests` — add a guest (name, email, plus-one allocation)
 - [ ] API: `GET /events/:id/guests` — list all guests
 - [ ] API: `PATCH /guests/:id` — update guest details or allocation
@@ -98,6 +106,7 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 ---
 
 ## Chunk 9 — Smart Invites & QR Codes (Backend + Frontend)
+
 - [ ] On guest creation, generate unique invite token (UUID)
 - [ ] Generate QR code image from invite link and store in Supabase storage
 - [ ] API: `GET /invites/:token` — public endpoint, returns event info + guest allocation
@@ -110,6 +119,7 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 ---
 
 ## Chunk 10 — Plus-One Approval Flow (Backend + Frontend)
+
 - [ ] On new plus-one request, send email notification to host
   - [ ] Email: guest name, event name, number requested, link to approve/reject in app
 - [ ] API: `PATCH /plus-one-requests/:id` — host approves or rejects
@@ -121,6 +131,7 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 ---
 
 ## Chunk 11 — Check-in Interface (Frontend + Backend)
+
 - [ ] API: `POST /check-in` — accepts QR token, returns guest info, validates, marks as arrived
   - [ ] Return: guest name, total allocation, guests already checked in, remaining
   - [ ] Prevent over-check-in (can't check in more than allocation)
@@ -133,6 +144,7 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 ---
 
 ## Chunk 12 — Gift List & Cash Contributions (Backend + Frontend)
+
 - [ ] API: `POST /events/:id/gift-list` — create gift list items
 - [ ] API: `GET /events/:id/gift-list` — fetch gift list
 - [ ] API: `PATCH /gift-list/:id` — update item (mark as purchased, etc.)
@@ -144,6 +156,7 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 ---
 
 ## Chunk 13 — Admin Portal: Vendor Management
+
 - [ ] Separate admin route (protected by admin role)
 - [ ] Vendor list view (all vendors, status, category)
 - [ ] Add new vendor form (name, category, location, price range, photos, contact)
@@ -152,6 +165,7 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 ---
 
 ## Chunk 13b — Admin Portal: Analytics Dashboard
+
 - [ ] Track and display: questionnaire completions, plans saved
 - [ ] Track and display: vendor profile views and contact clicks
 - [ ] Track and display: guest lists created, invites sent
@@ -160,6 +174,7 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 ---
 
 ## Chunk 14 — Email Templates & Notifications Polish
+
 - [ ] Invite email (event details + QR code)
 - [ ] Plus-one request notification to host
 - [ ] Plus-one approved email to guest
@@ -169,6 +184,7 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 ---
 
 ## Chunk 15 — CI/CD, Analytics & Final Deployment
+
 - [ ] GitHub Actions: lint + build check on every PR
 - [ ] PostHog: instrument key events (questionnaire completed, plan saved, vendor clicked, invite sent, check-in scanned)
 - [ ] Environment variables set on Vercel and Render
@@ -179,21 +195,21 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 
 ## Summary
 
-| Chunk | Area | Depends On |
-|-------|------|------------|
-| 1 | Project setup | — |
-| 2 | DB schema | 1 |
-| 3 | Auth | 2 |
-| 4 | Questionnaire UI | 3 |
-| 5 | Plan generation (backend) | 2 |
-| 6 | Plan display (frontend) | 4, 5 |
-| 7 | Vendor discovery | 2, 6 |
-| 8 | Guest list management | 3, 2 |
-| 9 | Smart invites & QR codes | 8 |
-| 10 | Plus-one approval flow | 9 |
-| 11 | Check-in interface | 9, 10 |
-| 12 | Gift list & payments | 3, 2 |
-| 13 | Admin portal: vendor management | 3, 7 |
-| 13b | Admin portal: analytics dashboard | 13 |
-| 14 | Email polish | 9, 10 |
-| 15 | CI/CD & deployment | all |
+| Chunk | Area                              | Depends On |
+| ----- | --------------------------------- | ---------- |
+| 1     | Project setup                     | —          |
+| 2     | DB schema                         | 1          |
+| 3     | Auth                              | 2          |
+| 4     | Questionnaire UI                  | 3          |
+| 5     | Plan generation (backend)         | 2          |
+| 6     | Plan display (frontend)           | 4, 5       |
+| 7     | Vendor discovery                  | 2, 6       |
+| 8     | Guest list management             | 3, 2       |
+| 9     | Smart invites & QR codes          | 8          |
+| 10    | Plus-one approval flow            | 9          |
+| 11    | Check-in interface                | 9, 10      |
+| 12    | Gift list & payments              | 3, 2       |
+| 13    | Admin portal: vendor management   | 3, 7       |
+| 13b   | Admin portal: analytics dashboard | 13         |
+| 14    | Email polish                      | 9, 10      |
+| 15    | CI/CD & deployment                | all        |

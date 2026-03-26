@@ -4,7 +4,10 @@
       "Bash(node:*)",
       "Bash(npx:*)",
       "Bash(printf:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(npm uninstall:*)"
     ]
   }
 }
