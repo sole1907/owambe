@@ -16,19 +16,19 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 
 ---
 
-## Chunk 2 — Database Schema & Migrations
-- [ ] Create Supabase project
-- [ ] Write migration: `users` table
-- [ ] Write migration: `events` table
-- [ ] Write migration: `vendors` table
-- [ ] Write migration: `vendor_categories` table
-- [ ] Write migration: `guest_lists` table
-- [ ] Write migration: `guest_invites` table (token, QR code URL, allocation, check-in status)
-- [ ] Write migration: `plus_one_requests` table (guest_invite_id, requested_count, status)
-- [ ] Write migration: `gift_lists` table
-- [ ] Write migration: `audit_logs` table
-- [ ] Add all indexes (vendor category, location, event type, invite token)
-- [ ] Seed vendor categories (venues, caterers, photographers, DJs, decorators)
+## Chunk 2 — Database Schema & Migrations ✅
+- [ ] Create Supabase project (manual — needs your account)
+- [x] Write migration: `users` table
+- [x] Write migration: `events` table + `event_plans` + `checklist_items`
+- [x] Write migration: `vendors` table
+- [x] Write migration: `vendor_categories` table
+- [x] Write migration: `guest_lists` table
+- [x] Write migration: `guest_invites` table (token, QR code URL, allocation, check-in status)
+- [x] Write migration: `plus_one_requests` table (guest_invite_id, requested_count, status)
+- [x] Write migration: `gift_lists` + `gift_list_items` table
+- [x] Write migration: `audit_logs` table
+- [x] Add all indexes (vendor category, location, event type, invite token)
+- [x] Seed vendor categories (13 categories for Nigerian owambe context)
 
 ---
 
