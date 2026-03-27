@@ -46,51 +46,52 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 
 ---
 
-## Chunk 4 — Event Onboarding Questionnaire (Frontend)
+## Chunk 4 — Event Onboarding Questionnaire (Frontend) ✅
 
-- [ ] Build step-by-step questionnaire UI (one question per screen)
-- [ ] Questions: event type, date, location, guest count, budget, style/theme, existing vendors
-- [ ] Progress indicator
-- [ ] Store answers in local state as user progresses
-- [ ] Submit answers to backend on completion
-
----
-
-## Chunk 5 — Event Plan Generation (Backend)
-
-- [ ] API endpoint: `POST /events/generate-plan`
-- [ ] Accept questionnaire answers as input
-- [ ] Rule-based checklist generation (based on event type + timeline)
-  - [ ] Define checklist templates per event type (wedding, birthday, corporate, etc.)
-  - [ ] Adjust timeline milestones based on event date
-- [ ] Budget breakdown logic (allocate % per vendor category based on event type)
-- [ ] Return: checklist, proposed plan summary, budget allocation
-- [ ] Save event + generated plan to DB
+- [x] Build step-by-step questionnaire UI (one question per screen)
+- [x] Questions: event type, date, location, guest count, budget, style/theme, existing vendors
+- [x] Progress indicator
+- [x] Store answers in local state as user progresses
+- [x] Submit answers to backend on completion
 
 ---
 
-## Chunk 6 — Event Plan Display & Management (Frontend)
+## Chunk 5 — Event Plan Generation (Backend) ✅
 
-- [ ] Display generated checklist (checkable items)
-- [ ] Display proposed event plan (budget breakdown, milestones)
-- [ ] Allow host to edit checklist items (add, remove, rename)
-- [ ] Allow host to adjust budget allocations
-- [ ] Save changes back to backend
+- [x] API endpoint: `POST /events/generate-plan`
+- [x] Accept questionnaire answers as input
+- [x] Rule-based checklist generation (based on event type + timeline)
+  - [x] Define checklist templates per event type (wedding, birthday, naming ceremony, corporate, burial, other)
+  - [x] Adjust timeline milestones based on event date
+- [x] Budget breakdown logic (allocate % per vendor category based on event type)
+- [x] Return: checklist, proposed plan summary, budget allocation
+- [x] Save event + generated plan to DB
 
 ---
 
-## Chunk 7 — Vendor Seed Data & Discovery (Backend + Frontend)
+## Chunk 6 — Event Plan Display & Management (Frontend) ✅
 
-- [ ] Seed 20–30 vendor records in DB (name, category, location, price range, rating, photos, contact)
-- [ ] API endpoint: `GET /vendors` (with filters: category, location, budget)
-- [ ] Vendor recommendation endpoint: `GET /events/:id/recommended-vendors`
-  - [ ] Filter by location match
-  - [ ] Filter by budget range
-  - [ ] Sort by curated ranking/rating
-- [ ] Frontend: vendor browsing page (filterable list)
-- [ ] Frontend: vendor profile page (photos, pricing, reviews, contact button)
-- [ ] Frontend: recommended vendors section on event plan page
-- [ ] Contact vendor via WhatsApp/phone (link out)
+- [x] Display generated checklist (checkable items)
+- [x] Display proposed event plan (budget breakdown, milestones)
+- [x] Allow host to edit checklist items (add, remove, rename)
+- [x] Allow host to adjust budget allocations
+- [x] Save changes back to backend
+
+---
+
+## Chunk 7 — Vendor Seed Data & Discovery (Backend + Frontend) ✅
+
+- [x] Seed 20–30 vendor records in DB (name, category, location, price range, rating, photos, contact)
+- [x] API endpoint: `GET /vendors` (with filters: category, location, budget)
+- [x] Vendor recommendation endpoint: `GET /events/:id/recommended-vendors`
+  - [x] Filter by location match
+  - [x] Filter by budget range
+  - [x] Sort by curated ranking/rating
+- [x] Frontend: vendor browsing page (filterable list)
+- [x] Frontend: vendor profile page (photos, pricing, reviews, contact button)
+- [x] Frontend: recommended vendors section on event plan page
+- [x] Contact vendor via WhatsApp/phone (link out)
+- [x] Home page with hero, features, and redirect for logged-in users
 
 ---
 
