@@ -37,9 +37,8 @@ describe('GuestsService', () => {
       const { svc, supabase } = makeService()
       supabase._client.from = jest
         .fn()
-        .mockReturnValueOnce(q({ data: guestListRow, error: null })) // getGuestListId event
-        .mockReturnValueOnce(q({ data: guestListRow, error: null })) // getGuestListId list
-        .mockReturnValueOnce(q({ data: guestRow, error: null })) // insert guest
+        .mockReturnValueOnce(q({ data: guestListRow, error: null })) // getGuestListId
+        .mockReturnValueOnce(q({ data: guestRow, error: null }))     // insert guest
 
       const result = await svc.addGuest(
         'event-id-1',
@@ -63,8 +62,7 @@ describe('GuestsService', () => {
       const { svc, supabase } = makeService()
       supabase._client.from = jest
         .fn()
-        .mockReturnValueOnce(q({ data: guestListRow, error: null }))
-        .mockReturnValueOnce(q({ data: guestListRow, error: null }))
+        .mockReturnValueOnce(q({ data: guestListRow, error: null })) // getGuestListId
 
       await expect(
         svc.addGuest('event-id-1', { fullName: 'X', email: 'x@x.com', allocation: 0 }, 'user-1'),
@@ -77,9 +75,8 @@ describe('GuestsService', () => {
       const { svc, supabase } = makeService()
       supabase._client.from = jest
         .fn()
-        .mockReturnValueOnce(q({ data: guestListRow, error: null }))
-        .mockReturnValueOnce(q({ data: guestListRow, error: null }))
-        .mockReturnValueOnce(q({ data: [guestRow], error: null }))
+        .mockReturnValueOnce(q({ data: guestListRow, error: null })) // getGuestListId
+        .mockReturnValueOnce(q({ data: [guestRow], error: null }))   // getGuests query
 
       const result = await svc.getGuests('event-id-1', 'user-id-1')
       expect(result).toHaveLength(1)

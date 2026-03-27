@@ -168,9 +168,9 @@ describe('InvitesService', () => {
       supabase._client.from = jest
         .fn()
         .mockReturnValueOnce(q({ data: pendingRequest, error: null })) // fetch request
-        .mockReturnValueOnce(q({ data: {}, error: null })) // update request status
-        .mockReturnValueOnce(q({ data: {}, error: null })) // update allocation
-      // Also mock storage for QR regen (called within generateAndStoreQrCode)
+        .mockReturnValueOnce(q({ data: {}, error: null }))             // update request status
+        .mockReturnValueOnce(q({ data: {}, error: null }))             // update allocation
+        .mockReturnValueOnce(q({ data: {}, error: null }))             // generateAndStoreQrCode: update qr_code_url
       const result = await svc.reviewPlusOneRequest('req-1', true, 'host-id-1')
       expect(result.approved).toBe(true)
       expect(result.newAllocation).toBe(4)

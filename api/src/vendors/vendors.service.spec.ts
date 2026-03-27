@@ -35,8 +35,8 @@ describe('VendorsService', () => {
       const { svc, supabase } = makeService()
       supabase._client.from = jest
         .fn()
-        .mockReturnValueOnce(q({ data: categoryRow, error: null })) // category lookup
-        .mockReturnValueOnce(q({ data: [vendorRow], error: null })) // vendors
+        .mockReturnValueOnce(q({ data: [vendorRow], error: null })) // vendors (built first)
+        .mockReturnValueOnce(q({ data: categoryRow, error: null })) // category lookup (inside if)
       const result = await svc.getVendors({ categorySlug: 'catering' })
       expect(result).toHaveLength(1)
     })
