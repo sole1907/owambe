@@ -8,7 +8,13 @@ const config = {
     '\\.(css|less|scss|svg|png|jpg|gif)$': '<rootDir>/__mocks__/fileMock.js',
   },
   transform: {
-    '^.+\\.(ts|tsx|js|jsx)$': ['babel-jest', { configFile: './babel.config.js' }],
+    '^.+\\.(ts|tsx|js|jsx)$': ['babel-jest', {
+      presets: [
+        ['@babel/preset-env', { targets: { node: 'current' } }],
+        ['@babel/preset-react', { runtime: 'automatic' }],
+        '@babel/preset-typescript',
+      ],
+    }],
   },
   testMatch: ['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}'],
   // Only collect coverage for lib/ — components require full React render setup

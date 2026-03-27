@@ -8,7 +8,7 @@
  */
 
 export type QueryResult<T = any> = {
-  data?: T
+  data?: T | null
   error?: { message: string } | null
   count?: number | null
 }
