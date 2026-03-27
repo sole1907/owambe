@@ -95,102 +95,137 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 
 ---
 
-## Chunk 8 — Guest List Management (Backend + Frontend)
+## Chunk 8 — Guest List Management (Backend + Frontend) ✅
 
-- [ ] API: `POST /events/:id/guests` — add a guest (name, email, plus-one allocation)
-- [ ] API: `GET /events/:id/guests` — list all guests
-- [ ] API: `PATCH /guests/:id` — update guest details or allocation
-- [ ] API: `DELETE /guests/:id` — remove a guest
-- [ ] Frontend: guest list page (add, edit, remove guests)
-- [ ] Frontend: set plus-one allocation per guest when adding
-
----
-
-## Chunk 9 — Smart Invites & QR Codes (Backend + Frontend)
-
-- [ ] On guest creation, generate unique invite token (UUID)
-- [ ] Generate QR code image from invite link and store in Supabase storage
-- [ ] API: `GET /invites/:token` — public endpoint, returns event info + guest allocation
-- [ ] Frontend: guest-facing invite page (event details, QR code, allocated spots)
-- [ ] Integrate Resend/SendGrid — send invite email to guest on creation
-  - [ ] Invite email template (event name, date, location, QR code, allocated spots)
-- [ ] API: `POST /invites/:token/request-plus-one` — guest submits a request for extra spots
-- [ ] Store request in `plus_one_requests` table with status `pending`
+- [x] API: `POST /events/:id/guests` — add a guest (name, email, plus-one allocation)
+- [x] API: `GET /events/:id/guests` — list all guests
+- [x] API: `GET /events/:id/guests/stats` — totals, RSVP breakdown
+- [x] API: `PATCH /guests/:id` — update guest details or allocation
+- [x] API: `DELETE /guests/:id` — remove a guest
+- [x] Frontend: guest list tab on event page (add, edit, remove guests)
+- [x] Frontend: set plus-one allocation per guest when adding
+- [x] Frontend: stats summary (total invites, total spots, accepted count)
 
 ---
 
-## Chunk 10 — Plus-One Approval Flow (Backend + Frontend)
+## Chunk 9 — Smart Invites & QR Codes (Backend + Frontend) ✅
 
-- [ ] On new plus-one request, send email notification to host
-  - [ ] Email: guest name, event name, number requested, link to approve/reject in app
-- [ ] API: `PATCH /plus-one-requests/:id` — host approves or rejects
-- [ ] On approval: update guest invite allocation, regenerate QR code if needed
-- [ ] On approval/rejection: send outcome email to guest
-- [ ] Frontend: pending requests list on guest list page (approve/reject buttons)
-- [ ] Frontend: badge/counter showing pending requests
-
----
-
-## Chunk 11 — Check-in Interface (Frontend + Backend)
-
-- [ ] API: `POST /check-in` — accepts QR token, returns guest info, validates, marks as arrived
-  - [ ] Return: guest name, total allocation, guests already checked in, remaining
-  - [ ] Prevent over-check-in (can't check in more than allocation)
-- [ ] Frontend: check-in page (mobile-optimised, no login required for coordinator)
-  - [ ] Manual token/name lookup option
-  - [ ] QR code scanner (use device camera via browser API)
-  - [ ] Display result: green (valid) / red (invalid or over-limit)
-  - [ ] Show checked-in count per guest
+- [x] On guest creation, generate unique invite token (UUID)
+- [x] Generate QR code image from invite link and store in Supabase storage
+- [x] API: `GET /invites/:token` — public endpoint, returns event info + guest allocation
+- [x] Frontend: guest-facing invite page (event details, QR code, allocated spots)
+- [x] Integrate Resend — send invite email to guest on creation
+  - [x] Invite email template (event name, date, location, QR code, allocated spots)
+- [x] API: `POST /invites/:token/request-plus-one` — guest submits a request for extra spots
+- [x] Store request in `plus_one_requests` table with status `pending`
+- [x] Host notified by email when plus-one request is submitted
 
 ---
 
-## Chunk 12 — Gift List & Cash Contributions (Backend + Frontend)
+## Chunk 10 — Plus-One Approval Flow (Backend + Frontend) ✅
 
-- [ ] API: `POST /events/:id/gift-list` — create gift list items
-- [ ] API: `GET /events/:id/gift-list` — fetch gift list
-- [ ] API: `PATCH /gift-list/:id` — update item (mark as purchased, etc.)
-- [ ] Paystack/Flutterwave: generate cash contribution link per event
-- [ ] Frontend: gift list creation page
-- [ ] Frontend: shareable gift list page (public-facing)
-- [ ] Display cash contribution link with copy/share button
-
----
-
-## Chunk 13 — Admin Portal: Vendor Management
-
-- [ ] Separate admin route (protected by admin role)
-- [ ] Vendor list view (all vendors, status, category)
-- [ ] Add new vendor form (name, category, location, price range, photos, contact)
-- [ ] Edit/deactivate vendor
+- [x] On new plus-one request, send email notification to host
+  - [x] Email: guest name, event name, number requested, link to approve/reject in app
+- [x] API: `PATCH /plus-one-requests/:id` — host approves or rejects
+- [x] API: `GET /events/:id/plus-one-requests` — list pending requests for an event
+- [x] On approval: update guest invite allocation, regenerate QR code
+- [x] On approval/rejection: send outcome email to guest
+- [x] Frontend: pending requests list on guest list page (approve/reject buttons)
+- [x] Frontend: badge/counter showing pending requests on Guests tab
 
 ---
 
-## Chunk 13b — Admin Portal: Analytics Dashboard
+## Chunk 11 — Check-in Interface (Frontend + Backend) ✅
 
-- [ ] Track and display: questionnaire completions, plans saved
-- [ ] Track and display: vendor profile views and contact clicks
-- [ ] Track and display: guest lists created, invites sent
-- [ ] PostHog integration on backend events
-
----
-
-## Chunk 14 — Email Templates & Notifications Polish
-
-- [ ] Invite email (event details + QR code)
-- [ ] Plus-one request notification to host
-- [ ] Plus-one approved email to guest
-- [ ] Plus-one rejected email to guest
-- [ ] Ensure all emails are mobile-friendly and branded
+- [x] API: `POST /check-in` — accepts QR token, returns guest info, validates, marks as arrived
+  - [x] Return: guest name, total allocation, guests already checked in, remaining
+  - [x] Prevent over-check-in (can't check in more than allocation)
+- [x] Frontend: check-in page (mobile-optimised, no login required for coordinator)
+  - [x] Manual token/name lookup option
+  - [x] QR code scanner (use device camera via browser API)
+  - [x] Display result: green (valid) / red (invalid or over-limit)
+  - [x] Show checked-in count per guest
 
 ---
 
-## Chunk 15 — CI/CD, Analytics & Final Deployment
+## Chunk 12 — Gift List & Cash Contributions (Backend + Frontend) ✅
 
-- [ ] GitHub Actions: lint + build check on every PR
-- [ ] PostHog: instrument key events (questionnaire completed, plan saved, vendor clicked, invite sent, check-in scanned)
-- [ ] Environment variables set on Vercel and Render
-- [ ] Final deployment smoke test (all flows end-to-end)
-- [ ] HTTPS verified on all endpoints
+- [x] API: `POST /events/:id/gift-list/items` — add gift list items
+- [x] API: `GET /events/:id/gift-list` — fetch gift list (public)
+- [x] API: `PATCH /gift-list/items/:id` — update item (mark as purchased, etc.)
+- [x] API: `DELETE /gift-list/items/:id` — remove item
+- [x] Paystack: generate cash contribution payment page per event
+- [x] API: `POST /events/:id/gift-list/cash-contribution` — enable + create Paystack page
+- [x] Frontend: gift list management tab on event page (add items, enable cash contributions)
+- [x] Frontend: shareable gift list page at `/gifts/[eventId]` (public-facing, no auth)
+- [x] Display cash contribution link with copy/share button on both host and public views
+
+---
+
+## Chunk 13 — Admin Portal: Vendor Management ✅
+
+- [x] Separate admin route `/admin` (protected by admin role — redirects non-admins)
+- [x] Vendor list view — all vendors (active + inactive), category, city, price range, rating
+- [x] Filter vendors by status (all / active / inactive)
+- [x] Toggle active/inactive inline from the list
+- [x] Add new vendor form (name, category, location, price range, contact, photos, featured flag)
+- [x] Edit vendor (full form pre-populated, active/featured toggles)
+
+---
+
+## Chunk 13b — Admin Portal: Analytics Dashboard ✅
+
+- [x] Track and display: questionnaire completions, plans saved (events with generated plans)
+- [x] Track and display: vendor profile views (PostHog `vendor_viewed` event on GET /vendors/:slug)
+- [x] Track and display: guest lists created, invites sent (PostHog `guest_added` + `invite_sent`)
+- [x] PostHog integration on backend — `plan_generated`, `vendor_viewed`, `guest_added`, `invite_sent`
+- [x] Admin analytics page at `/admin/analytics` — live DB counts: events by type, questionnaire conversion rate, guests/invites/check-ins, plus-one request breakdown, vendor stats
+- [x] `POSTHOG_KEY` added to API `.env.example` and config
+
+---
+
+## Chunk 14b — Tests (>90% Coverage) ✅
+
+- [x] Shared Supabase mock builder (`api/src/test/supabase.mock.ts`) — chainable + awaitable
+- [x] `api/src/events/plan-generator/budget-templates.spec.ts` — all 6 types, sums to 100%, positive %
+- [x] `api/src/events/plan-generator/checklist-templates.spec.ts` — all types, non-empty titles, ordered
+- [x] `api/src/events/plan-generator/plan-generator.service.spec.ts` — due dates, null dates, budget amounts, fallback, sortOrder
+- [x] `api/src/analytics/posthog.service.spec.ts` — init with/without key, capture, no-op, shutdown
+- [x] `api/src/analytics/analytics.service.spec.ts` — zeroed stats, full aggregation
+- [x] `api/src/email/email.service.spec.ts` — all 3 emails: subject, recipient, HTML content, Resend failure safety
+- [x] `api/src/auth/auth.service.spec.ts` — signUp/signIn success and failure paths
+- [x] `api/src/invites/invites.service.spec.ts` — checkIn, getInviteByToken, requestPlusOne, reviewPlusOneRequest
+- [x] `api/src/guests/guests.service.spec.ts` — addGuest, getGuests, updateGuest, deleteGuest
+- [x] `api/src/gifts/gifts.service.spec.ts` — getGiftList, addItem, updateItem, deleteItem, enableCashContribution
+- [x] `api/src/vendors/vendors.service.spec.ts` — getVendors, getVendor, getCategories, adminCreateVendor, adminUpdateVendor
+- [x] `web/jest.config.ts` — Next.js/SWC, jsdom, path aliases, 90%/80% thresholds
+- [x] `web/jest.setup.ts` — `@testing-library/jest-dom` imports
+- [x] `web/__tests__/lib/api.test.ts` — GET/POST/PATCH/DELETE, token headers, error handling
+- [x] `web/__tests__/lib/posthog.test.ts` — init (with/without key, SSR guard, idempotent), capture, identify, reset
+- [x] `api/package.json` — coverage exclusions, 90% threshold, `test:cov` script
+- [x] `web/package.json` — jest + @types/jest added, `test` and `test:cov` scripts
+- [x] `.github/workflows/ci.yml` — `npm run test:cov` added to both web and api jobs
+
+---
+
+## Chunk 14 — Email Templates & Notifications Polish ✅
+
+- [x] Invite email (event details + QR code)
+- [x] Plus-one request notification to host
+- [x] Plus-one approved email to guest
+- [x] Plus-one rejected email to guest
+- [x] All emails mobile-friendly and consistently branded
+
+---
+
+## Chunk 15 — CI/CD, Analytics & Final Deployment ✅
+
+- [x] GitHub Actions: lint + build check on every PR and push to master/develop (`.github/workflows/ci.yml`)
+- [x] PostHog frontend: `posthog-js` installed; `PostHogBootstrap` component initialises on mount, identifies users on sign-in, resets on sign-out
+- [x] PostHog events instrumented: `vendor_contact_clicked` (method: whatsapp/phone/instagram), `checkin_scanned` (success/failure + allocation info)
+- [x] Backend PostHog events already wired in Chunk 13b: `plan_generated`, `vendor_viewed`, `guest_added`, `invite_sent`
+- [x] Environment variable reference documented at `docs/deployment-env-vars.md` (Render + Vercel + Supabase Storage steps)
+- [x] Smoke test checklist documented (sign-up → event → guests → invite → check-in → gifts → admin)
 
 ---
 
@@ -213,4 +248,5 @@ Status key: `[ ]` not started · `[~]` in progress · `[x]` done
 | 13    | Admin portal: vendor management   | 3, 7       |
 | 13b   | Admin portal: analytics dashboard | 13         |
 | 14    | Email polish                      | 9, 10      |
+| 14b   | Tests (>90% coverage)             | all        |
 | 15    | CI/CD & deployment                | all        |

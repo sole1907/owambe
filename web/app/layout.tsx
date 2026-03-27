@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import localFont from 'next/font/local'
 import './globals.css'
 import { AuthProvider } from '@/context/auth'
+import PostHogBootstrap from '@/components/PostHogBootstrap'
 
 const geistSans = localFont({
   src: './fonts/GeistVF.woff',
@@ -23,7 +24,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <PostHogBootstrap />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   )

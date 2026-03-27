@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/context/auth'
 import { api } from '@/lib/api'
+import { capture } from '@/lib/posthog'
 
 type Vendor = {
   id: string
@@ -127,6 +128,7 @@ export default function VendorProfilePage() {
             href={whatsappUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => capture('vendor_contact_clicked', { vendor_slug: slug, vendor_name: vendor.name, method: 'whatsapp' })}
             className="flex items-center justify-center gap-2 w-full py-3 bg-green-500 text-white rounded-xl text-sm font-medium hover:bg-green-600 transition"
           >
             Contact on WhatsApp
@@ -135,6 +137,7 @@ export default function VendorProfilePage() {
         {vendor.phone && (
           <a
             href={`tel:${vendor.phone}`}
+            onClick={() => capture('vendor_contact_clicked', { vendor_slug: slug, vendor_name: vendor.name, method: 'phone' })}
             className="flex items-center justify-center gap-2 w-full py-3 border border-gray-300 text-gray-800 rounded-xl text-sm font-medium hover:bg-gray-50 transition"
           >
             Call {vendor.phone}
@@ -145,6 +148,7 @@ export default function VendorProfilePage() {
             href={`https://instagram.com/${vendor.instagram.replace('@', '')}`}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => capture('vendor_contact_clicked', { vendor_slug: slug, vendor_name: vendor.name, method: 'instagram' })}
             className="flex items-center justify-center gap-2 w-full py-3 border border-gray-300 text-gray-800 rounded-xl text-sm font-medium hover:bg-gray-50 transition"
           >
             View on Instagram ({vendor.instagram})

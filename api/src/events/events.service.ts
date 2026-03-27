@@ -2,12 +2,14 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common'
 import { SupabaseService } from '../supabase/supabase.service'
 import { PlanGeneratorService } from './plan-generator/plan-generator.service'
 import { GeneratePlanDto } from './dto/generate-plan.dto'
+import { PostHogService } from '../analytics/posthog.service'
 
 @Injectable()
 export class EventsService {
   constructor(
     private supabase: SupabaseService,
     private planGenerator: PlanGeneratorService,
+    private posthog: PostHogService,
   ) {}
 
   async generatePlan(dto: GeneratePlanDto, userId: string) {
@@ -65,6 +67,13 @@ export class EventsService {
     // 6. Create the gift list record for this event
     await client.from('gift_lists').insert({ event_id: event.id })
 
+    this.posthog.capture(userId, 'plan_generated', {
+      event_id: event.id,
+      event_type: dto.eventType,
+      guest_count: dto.guestCount,
+      budget_estimate: dto.budgetEstimate,
+    })
+
     return { id: event.id }
   }
 
@@ -104,7 +113,7 @@ export class EventsService {
   async updateChecklistItem(
     itemId: string,
     updates: { isCompleted?: boolean; title?: string },
-    userId: string,
+    _userId: string,
   ) {
     const client = this.supabase.getClient()
 
@@ -120,7 +129,7 @@ export class EventsService {
     return { success: true }
   }
 
-  async addChecklistItem(eventId: string, title: string, userId: string) {
+  async addChecklistItem(eventId: string, title: string, _userId: string) {
     const client = this.supabase.getClient()
 
     // Get current max sort_order
@@ -143,7 +152,7 @@ export class EventsService {
     return data
   }
 
-  async deleteChecklistItem(itemId: string, userId: string) {
+  async deleteChecklistItem(itemId: string, _userId: string) {
     const client = this.supabase.getClient()
 
     const { error } = await client.from('checklist_items').delete().eq('id', itemId)
@@ -152,7 +161,7 @@ export class EventsService {
     return { success: true }
   }
 
-  async updateBudgetBreakdown(eventId: string, budgetBreakdown: object[], userId: string) {
+  async updateBudgetBreakdown(eventId: string, budgetBreakdown: object[], _userId: string) {
     const client = this.supabase.getClient()
 
     const { error } = await client
