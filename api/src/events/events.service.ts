@@ -2,12 +2,14 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common'
 import { SupabaseService } from '../supabase/supabase.service'
 import { PlanGeneratorService } from './plan-generator/plan-generator.service'
 import { GeneratePlanDto } from './dto/generate-plan.dto'
+import { PostHogService } from '../analytics/posthog.service'
 
 @Injectable()
 export class EventsService {
   constructor(
     private supabase: SupabaseService,
     private planGenerator: PlanGeneratorService,
+    private posthog: PostHogService,
   ) {}
 
   async generatePlan(dto: GeneratePlanDto, userId: string) {
@@ -64,6 +66,13 @@ export class EventsService {
 
     // 6. Create the gift list record for this event
     await client.from('gift_lists').insert({ event_id: event.id })
+
+    this.posthog.capture(userId, 'plan_generated', {
+      event_id: event.id,
+      event_type: dto.eventType,
+      guest_count: dto.guestCount,
+      budget_estimate: dto.budgetEstimate,
+    })
 
     return { id: event.id }
   }

@@ -38,10 +38,10 @@ export default function HomePage() {
       {/* Hero */}
       <main className="flex-1 flex flex-col items-center justify-center text-center px-6 py-20">
         <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 leading-tight mb-4 max-w-2xl">
-          Plan your perfect Nigerian event
+          Plan your perfect event
         </h1>
         <p className="text-gray-500 text-lg mb-8 max-w-xl">
-          From owambe weddings to corporate dinners — get a personalised event plan, curated vendor
+          From owambe weddings to corporate dinners — get a personalised plan, curated vendor
           recommendations, and smart guest management. All in one place.
         </p>
         <div className="flex flex-col sm:flex-row gap-3">
@@ -86,7 +86,7 @@ export default function HomePage() {
       </section>
 
       <footer className="px-6 py-6 text-center text-xs text-gray-400 border-t border-gray-100">
-        © {new Date().getFullYear()} Owambe. Built for Nigerian events.
+        © {new Date().getFullYear()} Owambe.
       </footer>
     </div>
   )

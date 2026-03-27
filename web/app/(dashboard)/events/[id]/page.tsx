@@ -8,6 +8,8 @@ import { api } from '@/lib/api'
 import ChecklistSection from '@/components/event/ChecklistSection'
 import BudgetSection from '@/components/event/BudgetSection'
 import VendorsSection from '@/components/event/VendorsSection'
+import GuestListSection from '@/components/event/GuestListSection'
+import GiftListSection from '@/components/event/GiftListSection'
 
 type Event = {
   id: string
@@ -46,7 +48,16 @@ export default function EventPage() {
   const { token } = useAuth()
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'checklist' | 'budget' | 'vendors'>('checklist')
+  const [activeTab, setActiveTab] = useState<'checklist' | 'budget' | 'vendors' | 'guests' | 'gifts'>('checklist')
+  const [pendingRequestCount, setPendingRequestCount] = useState(0)
+
+  useEffect(() => {
+    if (!token || !event) return
+    api
+      .get<{ length: number }>(`/events/${event.id}/plus-one-requests`, token)
+      .then((data: unknown) => setPendingRequestCount(Array.isArray(data) ? data.length : 0))
+      .catch(() => null)
+  }, [event, token])
 
   useEffect(() => {
     if (!token) return
@@ -98,22 +109,34 @@ export default function EventPage() {
               )}
             </div>
           </div>
+          <Link
+            href={`/checkin?eventId=${event.id}`}
+            target="_blank"
+            className="text-xs bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 transition flex-shrink-0"
+          >
+            Check-in →
+          </Link>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 border-b border-gray-200">
-        {(['checklist', 'budget', 'vendors'] as const).map((tab) => (
+      <div className="flex gap-1 mb-6 border-b border-gray-200 overflow-x-auto">
+        {(['checklist', 'budget', 'vendors', 'guests', 'gifts'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 text-sm font-medium capitalize transition border-b-2 -mb-px ${
+            className={`px-4 py-2 text-sm font-medium whitespace-nowrap capitalize transition border-b-2 -mb-px flex items-center gap-1.5 ${
               activeTab === tab
                 ? 'border-black text-black'
                 : 'border-transparent text-gray-500 hover:text-black'
             }`}
           >
-            {tab === 'checklist' ? 'Checklist' : 'Budget'}
+            {tab === 'checklist' ? 'Checklist' : tab === 'budget' ? 'Budget' : tab === 'vendors' ? 'Vendors' : tab === 'guests' ? 'Guests' : 'Gifts'}
+            {tab === 'guests' && pendingRequestCount > 0 && (
+              <span className="bg-black text-white text-xs font-medium px-1.5 py-0.5 rounded-full leading-none">
+                {pendingRequestCount}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -136,6 +159,8 @@ export default function EventPage() {
       )}
 
       {activeTab === 'vendors' && <VendorsSection eventId={event.id} />}
+      {activeTab === 'guests' && <GuestListSection eventId={event.id} />}
+      {activeTab === 'gifts' && <GiftListSection eventId={event.id} />}
     </div>
   )
 }

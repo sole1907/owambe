@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common'
-import { VendorsController } from './vendors.controller'
+import { VendorsController, AdminVendorsController } from './vendors.controller'
 import { VendorsService } from './vendors.service'
+import { AnalyticsModule } from '../analytics/analytics.module'
 
 @Module({
-  controllers: [VendorsController],
+  imports: [AnalyticsModule],
+  controllers: [VendorsController, AdminVendorsController],
   providers: [VendorsService],
   exports: [VendorsService],
 })

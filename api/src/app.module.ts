@@ -5,6 +5,11 @@ import { SupabaseModule } from './supabase/supabase.module'
 import { AuthModule } from './auth/auth.module'
 import { EventsModule } from './events/events.module'
 import { VendorsModule } from './vendors/vendors.module'
+import { GuestsModule } from './guests/guests.module'
+import { InvitesModule } from './invites/invites.module'
+import { EmailModule } from './email/email.module'
+import { GiftsModule } from './gifts/gifts.module'
+import { AnalyticsModule } from './analytics/analytics.module'
 
 @Module({
   imports: [
@@ -16,6 +21,11 @@ import { VendorsModule } from './vendors/vendors.module'
     AuthModule,
     EventsModule,
     VendorsModule,
+    GuestsModule,
+    InvitesModule,
+    EmailModule,
+    GiftsModule,
+    AnalyticsModule,
   ],
 })
 export class AppModule {}

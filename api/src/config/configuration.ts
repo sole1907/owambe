@@ -10,4 +10,6 @@ export default () => ({
     expiresIn: '7d',
   },
   appUrl: process.env.APP_URL || 'http://localhost:3000',
+  paystackSecretKey: process.env.PAYSTACK_SECRET_KEY,
+  posthogKey: process.env.POSTHOG_KEY,
 })
