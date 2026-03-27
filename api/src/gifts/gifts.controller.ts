@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
-} from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common'
 import { GiftsService } from './gifts.service'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
@@ -40,11 +31,7 @@ export class GiftsController {
   }
 
   @Patch('gift-list/items/:id')
-  updateItem(
-    @Param('id') id: string,
-    @Body() dto: UpdateGiftItemDto,
-    @CurrentUser() user: any,
-  ) {
+  updateItem(@Param('id') id: string, @Body() dto: UpdateGiftItemDto, @CurrentUser() user: any) {
     return this.gifts.updateItem(id, user.id, dto)
   }
 
@@ -54,18 +41,12 @@ export class GiftsController {
   }
 
   @Post('events/:eventId/gift-list/cash-contribution')
-  enableCashContribution(
-    @Param('eventId') eventId: string,
-    @CurrentUser() user: any,
-  ) {
+  enableCashContribution(@Param('eventId') eventId: string, @CurrentUser() user: any) {
     return this.gifts.enableCashContribution(eventId, user.id)
   }
 
   @Delete('events/:eventId/gift-list/cash-contribution')
-  disableCashContribution(
-    @Param('eventId') eventId: string,
-    @CurrentUser() user: any,
-  ) {
+  disableCashContribution(@Param('eventId') eventId: string, @CurrentUser() user: any) {
     return this.gifts.disableCashContribution(eventId, user.id)
   }
 }

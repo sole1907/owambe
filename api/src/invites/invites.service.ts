@@ -43,10 +43,7 @@ export class InvitesService {
     const { data: urlData } = client.storage.from('invites').getPublicUrl(fileName)
 
     // Store QR code URL on the invite record
-    await client
-      .from('guest_invites')
-      .update({ qr_code_url: urlData.publicUrl })
-      .eq('id', guestId)
+    await client.from('guest_invites').update({ qr_code_url: urlData.publicUrl }).eq('id', guestId)
 
     return urlData.publicUrl
   }
@@ -83,7 +80,7 @@ export class InvitesService {
             month: 'long',
             year: 'numeric',
           })
-        : event?.event_date_approximate ?? '',
+        : (event?.event_date_approximate ?? ''),
       eventCity: event?.city ?? '',
       allocation: invite.allocation,
       inviteUrl,
@@ -243,10 +240,7 @@ export class InvitesService {
       newAllocation = invite.allocation + request.requested_count
 
       // Update guest allocation
-      await client
-        .from('guest_invites')
-        .update({ allocation: newAllocation })
-        .eq('id', invite.id)
+      await client.from('guest_invites').update({ allocation: newAllocation }).eq('id', invite.id)
 
       // Regenerate QR code with updated allocation (token unchanged, so URL is the same — just refresh)
       await this.generateAndStoreQrCode(invite.token, invite.id)
@@ -384,6 +378,6 @@ export class InvitesService {
       .eq('guest_list_id', guestListData.id)
 
     const validIds = new Set((inviteIds ?? []).map((i: any) => i.id))
-    return (data ?? []).filter((r: any) => validIds.has((r.guest_invites as any)?.id))
+    return (data ?? []).filter((r: any) => validIds.has(r.guest_invites?.id))
   }
 }

@@ -2,17 +2,11 @@ import { AnalyticsService } from './analytics.service'
 import { makeSupabaseMock, q } from '../test/supabase.mock'
 
 describe('AnalyticsService', () => {
-  function makeService(fromMap: Record<string, any> = {}) {
-    return new AnalyticsService(makeSupabaseMock(fromMap) as any)
-  }
-
   it('returns zeroed stats when all queries return empty data', async () => {
     const supabase = makeSupabaseMock()
     // All from() calls return q() which has data: null, count: null
     // Override to return safe empty arrays/counts
-    supabase._client.from = jest.fn().mockReturnValue(
-      q({ data: [], error: null, count: 0 }),
-    )
+    supabase._client.from = jest.fn().mockReturnValue(q({ data: [], error: null, count: 0 }))
     const svc = new AnalyticsService(supabase as any)
     const stats = await svc.getDashboardStats()
 
@@ -24,11 +18,7 @@ describe('AnalyticsService', () => {
   it('aggregates event counts and type breakdown', async () => {
     const eventsQuery = q({ data: null, error: null, count: 5 })
     const eventsByTypeQuery = q({
-      data: [
-        { event_type: 'wedding' },
-        { event_type: 'wedding' },
-        { event_type: 'birthday' },
-      ],
+      data: [{ event_type: 'wedding' }, { event_type: 'wedding' }, { event_type: 'birthday' }],
       error: null,
     })
     const plansQuery = q({ data: null, error: null, count: 3 })

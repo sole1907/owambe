@@ -32,18 +32,18 @@ describe('AuthService', () => {
         data: null,
         error: { message: 'Email already exists' },
       })
-      await expect(
-        svc.signUp({ email: 'x@x.com', password: 'pw', fullName: 'X' }),
-      ).rejects.toThrow(BadRequestException)
+      await expect(svc.signUp({ email: 'x@x.com', password: 'pw', fullName: 'X' })).rejects.toThrow(
+        BadRequestException,
+      )
     })
 
     it('throws BadRequestException when DB insert fails', async () => {
       const { svc, supabase } = makeService({
         users: q({ data: null, error: { message: 'duplicate key' } }),
       })
-      await expect(
-        svc.signUp({ email: 'x@x.com', password: 'pw', fullName: 'X' }),
-      ).rejects.toThrow(BadRequestException)
+      await expect(svc.signUp({ email: 'x@x.com', password: 'pw', fullName: 'X' })).rejects.toThrow(
+        BadRequestException,
+      )
     })
   })
 
@@ -63,18 +63,18 @@ describe('AuthService', () => {
         data: null,
         error: { message: 'Invalid credentials' },
       })
-      await expect(
-        svc.signIn({ email: 'bad@example.com', password: 'wrong' }),
-      ).rejects.toThrow(UnauthorizedException)
+      await expect(svc.signIn({ email: 'bad@example.com', password: 'wrong' })).rejects.toThrow(
+        UnauthorizedException,
+      )
     })
 
     it('throws UnauthorizedException when user row not found', async () => {
       const { svc, supabase } = makeService({
         users: q({ data: null, error: { message: 'not found' } }),
       })
-      await expect(
-        svc.signIn({ email: 'test@example.com', password: 'pw' }),
-      ).rejects.toThrow(UnauthorizedException)
+      await expect(svc.signIn({ email: 'test@example.com', password: 'pw' })).rejects.toThrow(
+        UnauthorizedException,
+      )
     })
   })
 })

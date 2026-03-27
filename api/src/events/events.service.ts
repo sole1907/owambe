@@ -113,7 +113,7 @@ export class EventsService {
   async updateChecklistItem(
     itemId: string,
     updates: { isCompleted?: boolean; title?: string },
-    userId: string,
+    _userId: string,
   ) {
     const client = this.supabase.getClient()
 
@@ -129,7 +129,7 @@ export class EventsService {
     return { success: true }
   }
 
-  async addChecklistItem(eventId: string, title: string, userId: string) {
+  async addChecklistItem(eventId: string, title: string, _userId: string) {
     const client = this.supabase.getClient()
 
     // Get current max sort_order
@@ -152,7 +152,7 @@ export class EventsService {
     return data
   }
 
-  async deleteChecklistItem(itemId: string, userId: string) {
+  async deleteChecklistItem(itemId: string, _userId: string) {
     const client = this.supabase.getClient()
 
     const { error } = await client.from('checklist_items').delete().eq('id', itemId)
@@ -161,7 +161,7 @@ export class EventsService {
     return { success: true }
   }
 
-  async updateBudgetBreakdown(eventId: string, budgetBreakdown: object[], userId: string) {
+  async updateBudgetBreakdown(eventId: string, budgetBreakdown: object[], _userId: string) {
     const client = this.supabase.getClient()
 
     const { error } = await client

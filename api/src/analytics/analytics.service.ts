@@ -37,10 +37,7 @@ export class AnalyticsService {
         .not('invite_sent_at', 'is', null),
 
       // Total check-ins recorded
-      client
-        .from('guest_invites')
-        .select('checked_in_count')
-        .gt('checked_in_count', 0),
+      client.from('guest_invites').select('checked_in_count').gt('checked_in_count', 0),
 
       // Plus-one requests by status
       client.from('plus_one_requests').select('status'),

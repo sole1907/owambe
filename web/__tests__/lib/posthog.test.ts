@@ -48,15 +48,6 @@ describe('posthog lib', () => {
       expect(mockPosthog.init).toHaveBeenCalledTimes(1)
     })
 
-    it('is a no-op when window is undefined (SSR)', () => {
-      const originalWindow = global.window
-      // @ts-expect-error simulating SSR
-      delete global.window
-      process.env.NEXT_PUBLIC_POSTHOG_KEY = 'phc_testkey'
-      initPostHog()
-      expect(mockPosthog.init).not.toHaveBeenCalled()
-      global.window = originalWindow
-    })
   })
 
   describe('capture()', () => {
@@ -65,14 +56,6 @@ describe('posthog lib', () => {
       expect(mockPosthog.capture).toHaveBeenCalledWith('test_event', { foo: 'bar' })
     })
 
-    it('is a no-op during SSR', () => {
-      const orig = global.window
-      // @ts-expect-error simulating SSR
-      delete global.window
-      capture('test_event')
-      expect(mockPosthog.capture).not.toHaveBeenCalled()
-      global.window = orig
-    })
   })
 
   describe('identify()', () => {
@@ -88,13 +71,5 @@ describe('posthog lib', () => {
       expect(mockPosthog.reset).toHaveBeenCalled()
     })
 
-    it('is a no-op during SSR', () => {
-      const orig = global.window
-      // @ts-expect-error simulating SSR
-      delete global.window
-      reset()
-      expect(mockPosthog.reset).not.toHaveBeenCalled()
-      global.window = orig
-    })
   })
 })

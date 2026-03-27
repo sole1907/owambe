@@ -146,9 +146,7 @@ export class GiftsService {
 
     const { data: item, error } = await client
       .from('gift_list_items')
-      .select(
-        `id, gift_lists ( events ( user_id ) )`,
-      )
+      .select(`id, gift_lists ( events ( user_id ) )`)
       .eq('id', itemId)
       .single()
 
@@ -189,7 +187,7 @@ export class GiftsService {
             // No amount = flexible / pay what you want
           }),
         })
-        const json = await response.json() as { status: boolean; data?: { slug: string } }
+        const json = (await response.json()) as { status: boolean; data?: { slug: string } }
         if (json.status && json.data?.slug) {
           paymentLink = `https://paystack.com/pay/${json.data.slug}`
         }

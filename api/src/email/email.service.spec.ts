@@ -17,7 +17,7 @@ function makeService() {
 }
 
 function getSendCall(svc: EmailService): jest.Mock {
-  return (Resend.mock.results[0].value.emails.send as jest.Mock)
+  return Resend.mock.results[0].value.emails.send as jest.Mock
 }
 
 describe('EmailService', () => {

@@ -19,7 +19,7 @@ export class GuestsService {
     private posthog: PostHogService,
   ) {}
 
-  private async getGuestListId(eventId: string, userId: string): Promise<string> {
+  private async getGuestListId(eventId: string, _userId: string): Promise<string> {
     const client = this.supabase.getClient()
 
     // Verify event belongs to user and get guest list id
@@ -73,9 +73,12 @@ export class GuestsService {
     if (error) throw new InternalServerErrorException(error.message)
 
     // Generate QR code and send invite email asynchronously (don't block response)
-    this.invites.generateAndStoreQrCode(data.token, data.id)
+    this.invites
+      .generateAndStoreQrCode(data.token, data.id)
       .then(() => this.invites.sendInviteEmail(data.id))
-      .then(() => this.posthog.capture(userId, 'invite_sent', { event_id: eventId, guest_id: data.id }))
+      .then(() =>
+        this.posthog.capture(userId, 'invite_sent', { event_id: eventId, guest_id: data.id }),
+      )
       .catch(() => null) // log internally, don't fail the request
 
     this.posthog.capture(userId, 'guest_added', { event_id: eventId, allocation: dto.allocation })
@@ -83,7 +86,7 @@ export class GuestsService {
     return data
   }
 
-  async updateGuest(guestId: string, dto: UpdateGuestDto, userId: string) {
+  async updateGuest(guestId: string, dto: UpdateGuestDto, _userId: string) {
     const client = this.supabase.getClient()
 
     // Verify guest belongs to a user-owned event
@@ -115,7 +118,7 @@ export class GuestsService {
     return data
   }
 
-  async deleteGuest(guestId: string, userId: string) {
+  async deleteGuest(guestId: string, _userId: string) {
     const client = this.supabase.getClient()
 
     const { data: guest, error: fetchError } = await client

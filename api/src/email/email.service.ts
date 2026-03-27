@@ -134,20 +134,6 @@ function primaryBtn(label: string, url: string): string {
   </table>`
 }
 
-function outlineBtn(label: string, url: string): string {
-  return `
-  <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;">
-    <tr>
-      <td style="border-radius:12px;border:1px solid #d1d5db;">
-        <a class="btn" href="${url}"
-           style="display:inline-block;padding:13px 32px;font-size:14px;font-weight:500;color:#374151;text-decoration:none;border-radius:12px;min-width:180px;text-align:center;">
-          ${label}
-        </a>
-      </td>
-    </tr>
-  </table>`
-}
-
 // ─── Email service ────────────────────────────────────────────────────────────
 
 @Injectable()
@@ -179,9 +165,11 @@ export class EmailService {
             <p style="margin:0;font-size:14px;color:#166534;">
               <strong>Your allocation:</strong>
               ${spots} spot${spots !== 1 ? 's' : ''}
-              ${plusOnes > 0
-                ? `&nbsp;&mdash;&nbsp; you + ${plusOnes} guest${plusOnes !== 1 ? 's' : ''}`
-                : `&nbsp;&mdash;&nbsp; just you`}
+              ${
+                plusOnes > 0
+                  ? `&nbsp;&mdash;&nbsp; you + ${plusOnes} guest${plusOnes !== 1 ? 's' : ''}`
+                  : `&nbsp;&mdash;&nbsp; just you`
+              }
             </p>
           </td>
         </tr>

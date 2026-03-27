@@ -29,7 +29,16 @@ const guestInvite = {
   rsvp_status: 'pending',
   token: 'token-abc',
   qr_code_url: 'https://storage.example.com/qr.png',
-  guest_lists: { events: { id: 'event-id-1', title: 'Big Wedding', user_id: 'host-id-1', event_date: '2025-12-01', event_date_approximate: null, city: 'Lagos' } },
+  guest_lists: {
+    events: {
+      id: 'event-id-1',
+      title: 'Big Wedding',
+      user_id: 'host-id-1',
+      event_date: '2025-12-01',
+      event_date_approximate: null,
+      city: 'Lagos',
+    },
+  },
 }
 
 function makeService(fromMap: Record<string, any> = {}) {
@@ -43,9 +52,10 @@ describe('InvitesService', () => {
   describe('checkIn()', () => {
     it('increments checked_in_count and returns success', async () => {
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn()
-        .mockReturnValueOnce(q({ data: guestInvite, error: null }))  // select invite
-        .mockReturnValueOnce(q({ data: {}, error: null }))           // update
+      supabase._client.from = jest
+        .fn()
+        .mockReturnValueOnce(q({ data: guestInvite, error: null })) // select invite
+        .mockReturnValueOnce(q({ data: {}, error: null })) // update
       const result = await svc.checkIn('token-abc')
       expect(result.success).toBe(true)
       expect(result.guestName).toBe('Adaeze')
@@ -65,9 +75,9 @@ describe('InvitesService', () => {
 
     it('throws NotFoundException for invalid token', async () => {
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn().mockReturnValueOnce(
-        q({ data: null, error: { message: 'not found' } }),
-      )
+      supabase._client.from = jest
+        .fn()
+        .mockReturnValueOnce(q({ data: null, error: { message: 'not found' } }))
       await expect(svc.checkIn('bad-token')).rejects.toThrow(NotFoundException)
     })
   })
@@ -75,9 +85,10 @@ describe('InvitesService', () => {
   describe('getInviteByToken()', () => {
     it('returns invite with event details', async () => {
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn()
-        .mockReturnValueOnce(q({ data: guestInvite, error: null }))    // invite
-        .mockReturnValueOnce(q({ data: null, error: null }))           // pending plus-one
+      supabase._client.from = jest
+        .fn()
+        .mockReturnValueOnce(q({ data: guestInvite, error: null })) // invite
+        .mockReturnValueOnce(q({ data: null, error: null })) // pending plus-one
       const result = await svc.getInviteByToken('token-abc')
       expect(result.full_name).toBe('Adaeze')
       expect(result.pendingPlusOneRequest).toBeNull()
@@ -86,7 +97,8 @@ describe('InvitesService', () => {
     it('includes pending plus-one request if it exists', async () => {
       const pendingReq = { id: 'req-1', requested_count: 1, status: 'pending' }
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn()
+      supabase._client.from = jest
+        .fn()
         .mockReturnValueOnce(q({ data: guestInvite, error: null }))
         .mockReturnValueOnce(q({ data: pendingReq, error: null }))
       const result = await svc.getInviteByToken('token-abc')
@@ -95,9 +107,9 @@ describe('InvitesService', () => {
 
     it('throws NotFoundException for invalid token', async () => {
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn().mockReturnValueOnce(
-        q({ data: null, error: { message: 'not found' } }),
-      )
+      supabase._client.from = jest
+        .fn()
+        .mockReturnValueOnce(q({ data: null, error: { message: 'not found' } }))
       await expect(svc.getInviteByToken('bad')).rejects.toThrow(NotFoundException)
     })
   })
@@ -109,11 +121,12 @@ describe('InvitesService', () => {
       const requestRow = { id: 'req-1', requested_count: 1, status: 'pending' }
       const hostRow = { email: 'host@example.com', full_name: 'Emeka' }
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn()
+      supabase._client.from = jest
+        .fn()
         .mockReturnValueOnce(q({ data: guestInvite, error: null })) // fetch invite
-        .mockReturnValueOnce(q({ data: null, error: null }))        // check existing (none)
-        .mockReturnValueOnce(q({ data: requestRow, error: null }))  // insert request
-        .mockReturnValueOnce(q({ data: hostRow, error: null }))     // fetch host
+        .mockReturnValueOnce(q({ data: null, error: null })) // check existing (none)
+        .mockReturnValueOnce(q({ data: requestRow, error: null })) // insert request
+        .mockReturnValueOnce(q({ data: hostRow, error: null })) // fetch host
       await svc.requestPlusOne('token-abc', dto as any)
       expect(mockEmail.sendPlusOneRequestToHost).toHaveBeenCalled()
     })
@@ -127,7 +140,8 @@ describe('InvitesService', () => {
 
     it('throws BadRequestException if pending request already exists', async () => {
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn()
+      supabase._client.from = jest
+        .fn()
         .mockReturnValueOnce(q({ data: guestInvite, error: null }))
         .mockReturnValueOnce(q({ data: { id: 'existing-req' }, error: null })) // existing
       await expect(svc.requestPlusOne('token-abc', dto as any)).rejects.toThrow(BadRequestException)
@@ -151,10 +165,11 @@ describe('InvitesService', () => {
 
     it('approves request — updates allocation and sends outcome email', async () => {
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn()
+      supabase._client.from = jest
+        .fn()
         .mockReturnValueOnce(q({ data: pendingRequest, error: null })) // fetch request
-        .mockReturnValueOnce(q({ data: {}, error: null }))             // update request status
-        .mockReturnValueOnce(q({ data: {}, error: null }))             // update allocation
+        .mockReturnValueOnce(q({ data: {}, error: null })) // update request status
+        .mockReturnValueOnce(q({ data: {}, error: null })) // update allocation
       // Also mock storage for QR regen (called within generateAndStoreQrCode)
       const result = await svc.reviewPlusOneRequest('req-1', true, 'host-id-1')
       expect(result.approved).toBe(true)
@@ -166,9 +181,10 @@ describe('InvitesService', () => {
 
     it('rejects request — sends rejection email without changing allocation', async () => {
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn()
+      supabase._client.from = jest
+        .fn()
         .mockReturnValueOnce(q({ data: pendingRequest, error: null }))
-        .mockReturnValueOnce(q({ data: {}, error: null }))             // update status
+        .mockReturnValueOnce(q({ data: {}, error: null })) // update status
       const result = await svc.reviewPlusOneRequest('req-1', false, 'host-id-1')
       expect(result.approved).toBe(false)
       expect(mockEmail.sendPlusOneOutcomeToGuest).toHaveBeenCalledWith(
@@ -178,21 +194,21 @@ describe('InvitesService', () => {
 
     it('throws NotFoundException for wrong owner', async () => {
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn().mockReturnValueOnce(
-        q({ data: pendingRequest, error: null }),
+      supabase._client.from = jest
+        .fn()
+        .mockReturnValueOnce(q({ data: pendingRequest, error: null }))
+      await expect(svc.reviewPlusOneRequest('req-1', true, 'different-host')).rejects.toThrow(
+        NotFoundException,
       )
-      await expect(
-        svc.reviewPlusOneRequest('req-1', true, 'different-host'),
-      ).rejects.toThrow(NotFoundException)
     })
 
     it('throws BadRequestException if request already reviewed', async () => {
       const reviewed = { ...pendingRequest, status: 'approved' }
       const { svc, supabase } = makeService()
       supabase._client.from = jest.fn().mockReturnValueOnce(q({ data: reviewed, error: null }))
-      await expect(
-        svc.reviewPlusOneRequest('req-1', true, 'host-id-1'),
-      ).rejects.toThrow(BadRequestException)
+      await expect(svc.reviewPlusOneRequest('req-1', true, 'host-id-1')).rejects.toThrow(
+        BadRequestException,
+      )
     })
   })
 })

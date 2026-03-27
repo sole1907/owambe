@@ -85,9 +85,7 @@ describe('PlanGeneratorService', () => {
     it.each(['wedding', 'birthday', 'naming_ceremony', 'corporate', 'burial', 'other'])(
       'handles event type: %s',
       (type) => {
-        expect(() =>
-          service.generate({ eventType: type, eventTitle: 'Test' } as any),
-        ).not.toThrow()
+        expect(() => service.generate({ eventType: type, eventTitle: 'Test' } as any)).not.toThrow()
       },
     )
   })

@@ -80,7 +80,7 @@ export class VendorsService {
       vendor_id: data.id,
       vendor_name: data.name,
       vendor_slug: slug,
-      category: (data.vendor_categories as any)?.slug,
+      category: data.vendor_categories?.slug,
       city: data.city,
     })
 
@@ -172,11 +172,7 @@ export class VendorsService {
 
     // Generate a unique slug
     let slug = this.slugify(dto.name)
-    const { data: existing } = await client
-      .from('vendors')
-      .select('slug')
-      .eq('slug', slug)
-      .single()
+    const { data: existing } = await client.from('vendors').select('slug').eq('slug', slug).single()
     if (existing) {
       slug = `${slug}-${Date.now()}`
     }

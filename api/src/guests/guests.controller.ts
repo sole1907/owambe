@@ -30,11 +30,7 @@ export class GuestsController {
   }
 
   @Patch('guests/:id')
-  updateGuest(
-    @Param('id') id: string,
-    @Body() dto: UpdateGuestDto,
-    @CurrentUser() user: any,
-  ) {
+  updateGuest(@Param('id') id: string, @Body() dto: UpdateGuestDto, @CurrentUser() user: any) {
     return this.guests.updateGuest(id, dto, user.id)
   }
 
