@@ -1,101 +1,93 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { useAuth } from '@/context/auth'
+
+export default function HomePage() {
+  const { user, isLoading } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!isLoading && user) {
+      router.replace('/dashboard')
+    }
+  }, [user, isLoading, router])
+
+  if (isLoading) return null
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <div className="min-h-screen bg-white flex flex-col">
+      {/* Nav */}
+      <header className="px-6 py-4 flex items-center justify-between border-b border-gray-100">
+        <span className="font-bold text-lg">Owambe</span>
+        <div className="flex items-center gap-4">
+          <Link href="/login" className="text-sm text-gray-600 hover:text-black transition">
+            Sign in
+          </Link>
+          <Link
+            href="/signup"
+            className="text-sm bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition"
+          >
+            Get started
+          </Link>
+        </div>
+      </header>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      {/* Hero */}
+      <main className="flex-1 flex flex-col items-center justify-center text-center px-6 py-20">
+        <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 leading-tight mb-4 max-w-2xl">
+          Plan your perfect event
+        </h1>
+        <p className="text-gray-500 text-lg mb-8 max-w-xl">
+          From owambe weddings to corporate dinners — get a personalised plan, curated vendor
+          recommendations, and smart guest management. All in one place.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Link
+            href="/signup"
+            className="bg-black text-white px-6 py-3 rounded-xl text-sm font-medium hover:bg-gray-800 transition"
           >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Start planning for free
+          </Link>
+          <Link
+            href="/login"
+            className="border border-gray-300 text-gray-700 px-6 py-3 rounded-xl text-sm font-medium hover:bg-gray-50 transition"
           >
-            Read our docs
-          </a>
+            Sign in
+          </Link>
         </div>
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+
+      {/* Features */}
+      <section className="px-6 py-16 bg-gray-50">
+        <div className="max-w-4xl mx-auto grid gap-8 sm:grid-cols-3 text-center">
+          {[
+            {
+              title: 'Smart planning questionnaire',
+              desc: 'Answer a few questions and get a personalised checklist, timeline, and budget plan instantly.',
+            },
+            {
+              title: 'Curated vendor directory',
+              desc: 'Browse verified venues, caterers, DJs, decorators and more — matched to your budget and city.',
+            },
+            {
+              title: 'Guest list & smart invites',
+              desc: 'Send QR-coded invites, manage plus-ones, and check in guests at the door from any device.',
+            },
+          ].map((f) => (
+            <div key={f.title} className="p-6 bg-white rounded-2xl border border-gray-200">
+              <h3 className="font-semibold text-gray-900 mb-2">{f.title}</h3>
+              <p className="text-sm text-gray-500">{f.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <footer className="px-6 py-6 text-center text-xs text-gray-400 border-t border-gray-100">
+        © {new Date().getFullYear()} Owambe.
       </footer>
     </div>
-  );
+  )
 }

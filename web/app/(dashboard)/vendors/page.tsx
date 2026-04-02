@@ -1,0 +1,145 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useAuth } from '@/context/auth'
+import { api } from '@/lib/api'
+
+type Category = { id: string; name: string; slug: string }
+type Vendor = {
+  id: string
+  name: string
+  slug: string
+  description: string
+  city: string
+  price_min: number | null
+  price_max: number | null
+  rating: number
+  review_count: number
+  is_featured: boolean
+  vendor_categories: Category
+}
+
+function formatNaira(value: number) {
+  if (value >= 1000000) return `₦${(value / 1000000).toFixed(1)}M`
+  if (value >= 1000) return `₦${(value / 1000).toFixed(0)}k`
+  return `₦${value}`
+}
+
+export default function VendorsPage() {
+  const { token } = useAuth()
+  const [vendors, setVendors] = useState<Vendor[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedCategory, setSelectedCategory] = useState('')
+  const [selectedCity, setSelectedCity] = useState('')
+
+  useEffect(() => {
+    if (!token) return
+    api.get<Category[]>('/vendors/categories', token).then(setCategories)
+  }, [token])
+
+  useEffect(() => {
+    if (!token) return
+    setLoading(true)
+    const params = new URLSearchParams()
+    if (selectedCategory) params.set('category', selectedCategory)
+    if (selectedCity) params.set('city', selectedCity)
+    api
+      .get<Vendor[]>(`/vendors?${params.toString()}`, token)
+      .then(setVendors)
+      .finally(() => setLoading(false))
+  }, [token, selectedCategory, selectedCity])
+
+  const CITIES = ['Lagos', 'Abuja', 'Port Harcourt', 'Ibadan', 'Enugu']
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Find Vendors</h1>
+        <p className="text-gray-500 text-sm mt-1">Browse our curated directory of event vendors</p>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 mb-6">
+        <select
+          value={selectedCategory}
+          onChange={(e) => setSelectedCategory(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+        >
+          <option value="">All categories</option>
+          {categories.map((c) => (
+            <option key={c.slug} value={c.slug}>{c.name}</option>
+          ))}
+        </select>
+
+        <select
+          value={selectedCity}
+          onChange={(e) => setSelectedCity(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+        >
+          <option value="">All cities</option>
+          {CITIES.map((city) => (
+            <option key={city} value={city}>{city}</option>
+          ))}
+        </select>
+
+        {(selectedCategory || selectedCity) && (
+          <button
+            onClick={() => { setSelectedCategory(''); setSelectedCity('') }}
+            className="text-sm text-gray-400 hover:text-black"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <p className="text-gray-400 text-sm">Loading vendors...</p>
+      ) : vendors.length === 0 ? (
+        <p className="text-gray-400 text-sm">No vendors found for these filters.</p>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {vendors.map((vendor) => (
+            <Link
+              key={vendor.id}
+              href={`/vendors/${vendor.slug}`}
+              className="block bg-white border border-gray-200 rounded-2xl p-5 hover:border-black transition"
+            >
+              {/* Placeholder image */}
+              <div className="w-full h-32 bg-gray-100 rounded-xl mb-4 flex items-center justify-center">
+                <span className="text-gray-300 text-sm">No photo yet</span>
+              </div>
+
+              <div className="flex items-start justify-between mb-1">
+                <h2 className="font-semibold text-gray-900 text-sm leading-tight">{vendor.name}</h2>
+                {vendor.is_featured && (
+                  <span className="text-xs bg-black text-white px-2 py-0.5 rounded-full ml-2 flex-shrink-0">
+                    Featured
+                  </span>
+                )}
+              </div>
+
+              <p className="text-xs text-gray-500 mb-2">
+                {vendor.vendor_categories?.name} · {vendor.city}
+              </p>
+
+              <p className="text-xs text-gray-500 line-clamp-2 mb-3">{vendor.description}</p>
+
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-700 font-medium">
+                  {vendor.price_min && vendor.price_max
+                    ? `${formatNaira(vendor.price_min)} – ${formatNaira(vendor.price_max)}`
+                    : 'Price on request'}
+                </span>
+                <span className="text-xs text-gray-500">
+                  ★ {vendor.rating} ({vendor.review_count})
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
