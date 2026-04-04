@@ -68,7 +68,7 @@ export class GiftsService {
 
     const { data: items, error: itemsError } = await client
       .from('gift_list_items')
-      .select('id, title, description, price_estimate, is_purchased, purchased_by, sort_order')
+      .select('id, title, description, price_estimate, store_url, is_purchased, purchased_by, sort_order')
       .eq('gift_list_id', giftList.id)
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true })
@@ -95,6 +95,7 @@ export class GiftsService {
         title: dto.title,
         description: dto.description ?? null,
         price_estimate: dto.priceEstimate ?? null,
+        store_url: dto.storeUrl ?? null,
         sort_order: dto.sortOrder ?? 0,
       })
       .select()
@@ -125,6 +126,7 @@ export class GiftsService {
     if (dto.title !== undefined) updates.title = dto.title
     if (dto.description !== undefined) updates.description = dto.description
     if (dto.priceEstimate !== undefined) updates.price_estimate = dto.priceEstimate
+    if (dto.storeUrl !== undefined) updates.store_url = dto.storeUrl
     if (dto.isPurchased !== undefined) updates.is_purchased = dto.isPurchased
     if (dto.purchasedBy !== undefined) updates.purchased_by = dto.purchasedBy
     if (dto.sortOrder !== undefined) updates.sort_order = dto.sortOrder

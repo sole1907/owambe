@@ -4,6 +4,18 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/context/auth'
 import { api } from '@/lib/api'
 
+// Contact Picker API types (not in standard TS lib yet)
+declare global {
+  interface Navigator {
+    contacts?: {
+      select: (
+        properties: string[],
+        options?: { multiple?: boolean },
+      ) => Promise<{ name?: string[]; email?: string[]; tel?: string[] }[]>
+    }
+  }
+}
+
 type Guest = {
   id: string
   full_name: string
@@ -46,6 +58,27 @@ const RSVP_STYLES = {
   declined: 'bg-red-100 text-red-600',
 }
 
+type ImportRow = { fullName: string; email: string; phone: string; allocation: number; error?: string }
+
+function parseCSV(text: string): ImportRow[] {
+  const lines = text.trim().split(/\r?\n/)
+  if (lines.length < 2) return []
+
+  // Detect if first line is a header (contains non-email text like "name" or "email")
+  const firstLower = lines[0].toLowerCase()
+  const startIndex = firstLower.includes('name') || firstLower.includes('email') ? 1 : 0
+
+  return lines.slice(startIndex).map((line) => {
+    const cols = line.split(',').map((c) => c.trim().replace(/^"|"$/g, ''))
+    const fullName = cols[0] ?? ''
+    const email = cols[1] ?? ''
+    const phone = cols[2] ?? ''
+    const allocation = parseInt(cols[3] ?? '1') || 1
+    const error = !fullName ? 'Missing name' : !email.includes('@') ? 'Invalid email' : undefined
+    return { fullName, email, phone, allocation, error }
+  }).filter((r) => r.fullName || r.email) // drop blank lines
+}
+
 export default function GuestListSection({ eventId }: Props) {
   const { token } = useAuth()
   const [guests, setGuests] = useState<Guest[]>([])
@@ -57,6 +90,9 @@ export default function GuestListSection({ eventId }: Props) {
   const [form, setForm] = useState({ fullName: '', email: '', phone: '', allocation: 1 })
   const [saving, setSaving] = useState(false)
   const [reviewing, setReviewing] = useState<string | null>(null)
+  const [importRows, setImportRows] = useState<ImportRow[] | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<{ imported: number } | null>(null)
 
   const fetchGuests = async () => {
     if (!token) return
@@ -130,6 +166,58 @@ export default function GuestListSection({ eventId }: Props) {
       await fetchGuests()
     } finally {
       setReviewing(null)
+    }
+  }
+
+  const handleContactPicker = async () => {
+    if (!navigator.contacts) return
+    try {
+      const selected = await navigator.contacts.select(['name', 'email', 'tel'], { multiple: true })
+      const rows: ImportRow[] = selected.map((c) => {
+        const fullName = c.name?.[0]?.trim() ?? ''
+        const email = c.email?.[0]?.trim() ?? ''
+        const phone = c.tel?.[0]?.trim() ?? ''
+        const error = !fullName ? 'Missing name' : !email.includes('@') ? 'No email for this contact' : undefined
+        return { fullName, email, phone, allocation: 1, error }
+      }).filter((r) => r.fullName || r.email)
+      if (rows.length) {
+        setImportRows(rows)
+        setImportResult(null)
+      }
+    } catch {
+      // user cancelled — do nothing
+    }
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string
+      setImportRows(parseCSV(text))
+      setImportResult(null)
+    }
+    reader.readAsText(file)
+    e.target.value = '' // reset so same file can be re-selected
+  }
+
+  const handleImportConfirm = async () => {
+    if (!importRows) return
+    const valid = importRows.filter((r) => !r.error)
+    if (!valid.length) return
+    setImporting(true)
+    try {
+      const result = await api.post<{ imported: number }>(
+        `/events/${eventId}/guests/import`,
+        { guests: valid.map(({ fullName, email, phone, allocation }) => ({ fullName, email, phone: phone || undefined, allocation })) },
+        token ?? undefined,
+      )
+      setImportResult(result)
+      setImportRows(null)
+      await fetchGuests()
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -208,13 +296,80 @@ export default function GuestListSection({ eventId }: Props) {
         <h2 className="text-lg font-semibold text-gray-900">
           Guests <span className="text-gray-400 font-normal text-sm">({guests.length})</span>
         </h2>
-        <button
-          onClick={() => { resetForm(); setShowForm(true) }}
-          className="text-sm bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition"
-        >
-          + Add guest
-        </button>
+        <div className="flex gap-2">
+          {typeof navigator !== 'undefined' && navigator.contacts && (
+            <button
+              onClick={handleContactPicker}
+              className="text-sm border border-gray-300 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 transition"
+            >
+              From contacts
+            </button>
+          )}
+          <label className="text-sm border border-gray-300 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 transition cursor-pointer">
+            Import CSV
+            <input type="file" accept=".csv,.txt" className="hidden" onChange={handleFileChange} />
+          </label>
+          <button
+            onClick={() => { resetForm(); setShowForm(true) }}
+            className="text-sm bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition"
+          >
+            + Add guest
+          </button>
+        </div>
       </div>
+
+      {/* Import success banner */}
+      {importResult && (
+        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+          Successfully imported {importResult.imported} guest{importResult.imported !== 1 ? 's' : ''}. Invites are being sent.
+        </div>
+      )}
+
+      {/* CSV preview */}
+      {importRows && (
+        <div className="mb-5 border border-gray-200 rounded-xl overflow-hidden">
+          <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">
+                Preview — {importRows.filter((r) => !r.error).length} valid
+                {importRows.some((r) => r.error) && (
+                  <span className="text-red-500 ml-1">· {importRows.filter((r) => r.error).length} invalid</span>
+                )}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">Expected columns: Name, Email, Phone (optional), Allocation (optional)</p>
+            </div>
+            <button onClick={() => setImportRows(null)} className="text-xs text-gray-400 hover:text-gray-600">Dismiss</button>
+          </div>
+          <div className="max-h-60 overflow-y-auto">
+            {importRows.map((row, i) => (
+              <div key={i} className={`flex items-center gap-4 px-4 py-2.5 border-b border-gray-100 last:border-0 text-sm ${row.error ? 'bg-red-50' : ''}`}>
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium text-gray-900">{row.fullName || '—'}</span>
+                  <span className="text-gray-400 ml-2">{row.email}</span>
+                </div>
+                {row.phone && <span className="text-xs text-gray-400">{row.phone}</span>}
+                <span className="text-xs text-gray-500">×{row.allocation}</span>
+                {row.error && <span className="text-xs text-red-500">{row.error}</span>}
+              </div>
+            ))}
+          </div>
+          <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex gap-2">
+            <button
+              onClick={handleImportConfirm}
+              disabled={importing || !importRows.some((r) => !r.error)}
+              className="px-4 py-2 bg-black text-white text-sm rounded-lg hover:bg-gray-800 disabled:opacity-50"
+            >
+              {importing ? 'Importing...' : `Import ${importRows.filter((r) => !r.error).length} guests`}
+            </button>
+            <button
+              onClick={() => setImportRows(null)}
+              className="px-4 py-2 border border-gray-300 text-gray-600 text-sm rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Add / Edit form */}
       {showForm && (

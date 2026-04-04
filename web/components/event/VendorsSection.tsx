@@ -25,12 +25,21 @@ function formatNaira(value: number) {
   return `₦${value}`
 }
 
-type Props = { eventId: string }
+type ChecklistItem = { id: string; title: string; is_completed: boolean }
 
-export default function VendorsSection({ eventId }: Props) {
+type Props = {
+  eventId: string
+  initialCategory?: string
+  checklistItems?: ChecklistItem[]
+}
+
+export default function VendorsSection({ eventId, initialCategory, checklistItems = [] }: Props) {
   const { token } = useAuth()
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [loading, setLoading] = useState(true)
+  const [activeCategory, setActiveCategory] = useState(initialCategory ?? '')
+  const [booked, setBooked] = useState<Record<string, boolean>>({})
+  const [bookingId, setBookingId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!token) return
@@ -39,6 +48,25 @@ export default function VendorsSection({ eventId }: Props) {
       .then(setVendors)
       .finally(() => setLoading(false))
   }, [eventId, token])
+
+  // Sync when parent changes the pre-selected category (checklist CTA click)
+  useEffect(() => {
+    if (initialCategory !== undefined) setActiveCategory(initialCategory)
+  }, [initialCategory])
+
+  const handleBookVendor = async (vendor: Vendor) => {
+    setBookingId(vendor.id)
+    // Find first uncompleted checklist item matching this vendor's category
+    const categorySlug = vendor.vendor_categories?.slug ?? ''
+    const match = checklistItems.find(
+      (item) => !item.is_completed && item.title.toLowerCase().includes(categorySlug.replace(/-/g, ' ').split('s')[0]),
+    )
+    if (match) {
+      await api.patch(`/events/checklist/${match.id}`, { isCompleted: true }, token ?? undefined)
+    }
+    setBooked((prev) => ({ ...prev, [vendor.id]: true }))
+    setBookingId(null)
+  }
 
   if (loading) return <p className="text-gray-400 text-sm">Finding vendors for your event...</p>
 
@@ -55,6 +83,14 @@ export default function VendorsSection({ eventId }: Props) {
     )
   }
 
+  const categories = Array.from(
+    new Map(vendors.map((v) => [v.vendor_categories?.slug, v.vendor_categories?.name])).entries(),
+  ).filter(([slug]) => slug)
+
+  const filtered = activeCategory
+    ? vendors.filter((v) => v.vendor_categories?.slug === activeCategory)
+    : vendors
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -67,8 +103,33 @@ export default function VendorsSection({ eventId }: Props) {
         </Link>
       </div>
 
+      {/* Category filter */}
+      {categories.length > 1 && (
+        <div className="flex gap-2 flex-wrap mb-4">
+          <button
+            onClick={() => setActiveCategory('')}
+            className={`text-xs px-3 py-1.5 rounded-full border transition ${
+              activeCategory === '' ? 'bg-black text-white border-black' : 'border-gray-300 text-gray-600 hover:border-gray-400'
+            }`}
+          >
+            All
+          </button>
+          {categories.map(([slug, name]) => (
+            <button
+              key={slug}
+              onClick={() => setActiveCategory(slug ?? '')}
+              className={`text-xs px-3 py-1.5 rounded-full border transition ${
+                activeCategory === slug ? 'bg-black text-white border-black' : 'border-gray-300 text-gray-600 hover:border-gray-400'
+              }`}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2">
-        {vendors.map((vendor) => {
+        {filtered.map((vendor) => {
           const whatsappUrl = vendor.whatsapp
             ? `https://wa.me/${vendor.whatsapp.replace(/\D/g, '')}?text=Hi, I found you on Owambe and I'm interested in your services.`
             : null
@@ -99,23 +160,36 @@ export default function VendorsSection({ eventId }: Props) {
                     ? `${formatNaira(vendor.price_min)} – ${formatNaira(vendor.price_max)}`
                     : 'Price on request'}
                 </span>
-                {whatsappUrl ? (
-                  <a
-                    href={whatsappUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs bg-green-500 text-white px-3 py-1.5 rounded-lg hover:bg-green-600 transition"
-                  >
-                    WhatsApp
-                  </a>
-                ) : (
-                  <Link
-                    href={`/vendors/${vendor.slug}`}
-                    className="text-xs border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition"
-                  >
-                    View
-                  </Link>
-                )}
+                <div className="flex gap-2">
+                  {whatsappUrl ? (
+                    <a
+                      href={whatsappUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs bg-green-500 text-white px-3 py-1.5 rounded-lg hover:bg-green-600 transition"
+                    >
+                      WhatsApp
+                    </a>
+                  ) : (
+                    <Link
+                      href={`/vendors/${vendor.slug}`}
+                      className="text-xs border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition"
+                    >
+                      View
+                    </Link>
+                  )}
+                  {booked[vendor.id] ? (
+                    <span className="text-xs text-green-600 font-medium px-3 py-1.5">Booked ✓</span>
+                  ) : (
+                    <button
+                      onClick={() => handleBookVendor(vendor)}
+                      disabled={bookingId === vendor.id}
+                      className="text-xs border border-gray-300 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition"
+                    >
+                      {bookingId === vendor.id ? '...' : 'Mark booked'}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )

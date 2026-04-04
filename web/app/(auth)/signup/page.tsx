@@ -18,7 +18,7 @@ export default function SignUpPage() {
     setLoading(true)
     try {
       await signUp(form.email, form.password, form.fullName, form.phone || undefined)
-      router.push('/dashboard')
+      router.push('/verify-email')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {

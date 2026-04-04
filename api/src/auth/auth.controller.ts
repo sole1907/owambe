@@ -19,6 +19,11 @@ export class AuthController {
     return this.auth.signIn(dto)
   }
 
+  @Post('exchange-token')
+  exchangeToken(@Body() body: { access_token: string }) {
+    return this.auth.exchangeToken(body.access_token)
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: any) {

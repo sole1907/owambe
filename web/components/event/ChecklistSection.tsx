@@ -12,12 +12,29 @@ type ChecklistItem = {
   sort_order: number
 }
 
+const VENDOR_CTAS: { pattern: RegExp; slug: string; label: string }[] = [
+  { pattern: /venue/i,                           slug: 'venues',            label: 'Find venues' },
+  { pattern: /cater/i,                           slug: 'caterers',          label: 'Find caterers' },
+  { pattern: /photograph/i,                      slug: 'photographers',     label: 'Find photographers' },
+  { pattern: /videograph/i,                      slug: 'videographers',     label: 'Find videographers' },
+  { pattern: /\bdj\b|live band|entertainment/i,  slug: 'djs',               label: 'Find DJs & bands' },
+  { pattern: /\bmc\b/i,                          slug: 'mcs',               label: 'Find MCs' },
+  { pattern: /decor/i,                           slug: 'decorators',        label: 'Find decorators' },
+  { pattern: /makeup/i,                          slug: 'makeup-artists',    label: 'Find makeup artists' },
+  { pattern: /coordinator|planner/i,             slug: 'event-coordinators', label: 'Find coordinators' },
+]
+
+function getCTA(title: string) {
+  return VENDOR_CTAS.find((c) => c.pattern.test(title)) ?? null
+}
+
 type Props = {
   eventId: string
   initialItems: ChecklistItem[]
+  onFindVendors?: (categorySlug: string) => void
 }
 
-export default function ChecklistSection({ eventId, initialItems }: Props) {
+export default function ChecklistSection({ eventId, initialItems, onFindVendors }: Props) {
   const { token } = useAuth()
   const [items, setItems] = useState<ChecklistItem[]>(
     [...initialItems].sort((a, b) => a.sort_order - b.sort_order),
@@ -127,6 +144,17 @@ export default function ChecklistSection({ eventId, initialItems }: Props) {
                   Due {new Date(item.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </p>
               )}
+              {!item.is_completed && !editingId && onFindVendors && (() => {
+                const cta = getCTA(item.title)
+                return cta ? (
+                  <button
+                    onClick={() => onFindVendors(cta.slug)}
+                    className="mt-1.5 text-xs text-black font-medium hover:underline"
+                  >
+                    {cta.label} →
+                  </button>
+                ) : null
+              })()}
             </div>
 
             {editingId !== item.id && (

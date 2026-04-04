@@ -118,6 +118,46 @@ export class GuestsService {
     return data
   }
 
+  async importGuests(
+    eventId: string,
+    rows: { fullName: string; email: string; phone?: string; allocation?: number }[],
+    userId: string,
+  ) {
+    const client = this.supabase.getClient()
+    const guestListId = await this.getGuestListId(eventId, userId)
+
+    if (!rows.length) throw new BadRequestException('No rows to import')
+    if (rows.length > 500) throw new BadRequestException('Maximum 500 guests per import')
+
+    const records = rows.map((r) => ({
+      guest_list_id: guestListId,
+      full_name: r.fullName.trim(),
+      email: r.email.trim().toLowerCase(),
+      phone: r.phone?.trim() || null,
+      allocation: r.allocation && r.allocation > 0 ? r.allocation : 1,
+      token: randomUUID(),
+    }))
+
+    const { data, error } = await client
+      .from('guest_invites')
+      .insert(records)
+      .select('id, token')
+
+    if (error) throw new InternalServerErrorException(error.message)
+
+    // Fire QR + email async per guest, same as single add
+    for (const guest of data) {
+      this.invites
+        .generateAndStoreQrCode(guest.token, guest.id)
+        .then(() => this.invites.sendInviteEmail(guest.id))
+        .catch(() => null)
+    }
+
+    this.posthog.capture(userId, 'guests_imported', { event_id: eventId, count: data.length })
+
+    return { imported: data.length }
+  }
+
   async deleteGuest(guestId: string, _userId: string) {
     const client = this.supabase.getClient()
 

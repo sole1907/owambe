@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { JwtService } from '@nestjs/jwt'
 import { SupabaseService } from '../supabase/supabase.service'
 import { SignUpDto } from './dto/signup.dto'
@@ -9,22 +10,26 @@ export class AuthService {
   constructor(
     private supabase: SupabaseService,
     private jwt: JwtService,
+    private config: ConfigService,
   ) {}
 
   async signUp(dto: SignUpDto) {
     const client = this.supabase.getClient()
+    const appUrl = this.config.get<string>('appUrl')
 
-    // Create user in Supabase Auth
-    const { data: authData, error: authError } = await client.auth.admin.createUser({
+    const { data: authData, error: authError } = await client.auth.signUp({
       email: dto.email,
       password: dto.password,
-      email_confirm: true,
+      options: {
+        emailRedirectTo: `${appUrl}/auth/confirm`,
+      },
     })
 
     if (authError) throw new BadRequestException(authError.message)
+    if (!authData.user) throw new BadRequestException('Signup failed')
 
     // Create user record in our users table
-    const { data: user, error: dbError } = await client
+    const { error: dbError } = await client
       .from('users')
       .insert({
         id: authData.user.id,
@@ -33,13 +38,27 @@ export class AuthService {
         phone: dto.phone ?? null,
         role: 'user',
       })
-      .select()
-      .single()
 
     if (dbError) throw new BadRequestException(dbError.message)
 
-    const token = this.issueToken(user)
-    return { user, token }
+    return { message: 'Check your email to confirm your account' }
+  }
+
+  async exchangeToken(supabaseAccessToken: string) {
+    const client = this.supabase.getClient()
+
+    const { data: { user }, error } = await client.auth.getUser(supabaseAccessToken)
+    if (error || !user) throw new UnauthorizedException('Invalid or expired token')
+
+    const { data: dbUser, error: dbError } = await client
+      .from('users')
+      .select('id, email, full_name, role')
+      .eq('id', user.id)
+      .single()
+
+    if (dbError || !dbUser) throw new UnauthorizedException('User not found')
+
+    return { user: dbUser, token: this.issueToken(dbUser) }
   }
 
   async signIn(dto: SignInDto) {
@@ -51,7 +70,13 @@ export class AuthService {
       password: dto.password,
     })
 
-    if (authError) throw new UnauthorizedException('Invalid email or password')
+    if (authError) {
+      const msg = authError.message.toLowerCase()
+      if (msg.includes('email not confirmed') || msg.includes('not confirmed')) {
+        throw new UnauthorizedException('Please verify your email before signing in. Check your inbox.')
+      }
+      throw new UnauthorizedException('Invalid email or password')
+    }
 
     // Fetch user from our users table
     const { data: user, error: dbError } = await client
