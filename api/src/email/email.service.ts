@@ -138,12 +138,17 @@ function primaryBtn(label: string, url: string): string {
 
 @Injectable()
 export class EmailService {
-  private resend: Resend
+  private resend: Resend | null = null
   private readonly logger = new Logger(EmailService.name)
   private readonly from = 'Owambe <invites@owambe.app>'
 
   constructor(private config: ConfigService) {
-    this.resend = new Resend(this.config.get<string>('RESEND_API_KEY'))
+    const key = this.config.get<string>('RESEND_API_KEY')
+    if (key) {
+      this.resend = new Resend(key)
+    } else {
+      this.logger.warn('RESEND_API_KEY is not set — emails will not be sent')
+    }
   }
 
   // ── 1. Guest invite ──────────────────────────────────────────────────────────
@@ -197,6 +202,7 @@ export class EmailService {
       </p>
     `
 
+    if (!this.resend) return
     try {
       await this.resend.emails.send({
         from: this.from,
@@ -238,6 +244,7 @@ export class EmailService {
       ${primaryBtn('Review request', params.approveUrl)}
     `
 
+    if (!this.resend) return
     try {
       await this.resend.emails.send({
         from: this.from,
@@ -300,6 +307,7 @@ export class EmailService {
         </p>
       `
 
+    if (!this.resend) return
     try {
       await this.resend.emails.send({
         from: this.from,
