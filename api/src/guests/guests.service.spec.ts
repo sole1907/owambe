@@ -110,6 +110,49 @@ describe('GuestsService', () => {
     })
   })
 
+  describe('importGuests()', () => {
+    it('bulk inserts guests and fires QR + email per guest', async () => {
+      const { svc, supabase } = makeService()
+      const inserted = [
+        { id: 'invite-id-1', token: 'tok-1' },
+        { id: 'invite-id-2', token: 'tok-2' },
+      ]
+      supabase._client.from = jest
+        .fn()
+        .mockReturnValueOnce(q({ data: guestListRow, error: null })) // getGuestListId
+        .mockReturnValueOnce(q({ data: inserted, error: null }))     // bulk insert
+
+      const result = await svc.importGuests(
+        'event-id-1',
+        [
+          { fullName: 'Ngozi', email: 'ngozi@example.com' },
+          { fullName: 'Emeka', email: 'emeka@example.com', phone: '+234', allocation: 2 },
+        ],
+        'user-id-1',
+      )
+
+      expect(result.imported).toBe(2)
+      expect(mockPosthog.capture).toHaveBeenCalledWith('user-id-1', 'guests_imported', expect.any(Object))
+    })
+
+    it('throws BadRequestException for empty rows', async () => {
+      const { svc, supabase } = makeService()
+      supabase._client.from = jest
+        .fn()
+        .mockReturnValueOnce(q({ data: guestListRow, error: null }))
+      await expect(svc.importGuests('event-id-1', [], 'user-id-1')).rejects.toThrow(BadRequestException)
+    })
+
+    it('throws BadRequestException when over 500 rows', async () => {
+      const { svc, supabase } = makeService()
+      supabase._client.from = jest
+        .fn()
+        .mockReturnValueOnce(q({ data: guestListRow, error: null }))
+      const rows = Array.from({ length: 501 }, (_, i) => ({ fullName: `Guest ${i}`, email: `g${i}@x.com` }))
+      await expect(svc.importGuests('event-id-1', rows, 'user-id-1')).rejects.toThrow(BadRequestException)
+    })
+  })
+
   describe('deleteGuest()', () => {
     it('deletes guest when user owns the event', async () => {
       const { svc, supabase } = makeService()
