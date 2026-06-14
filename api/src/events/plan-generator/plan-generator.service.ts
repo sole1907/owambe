@@ -62,12 +62,16 @@ export class PlanGeneratorService {
       ? new Date(dto.eventDate)
       : parseApproximateDate(dto.eventDateApproximate ?? '')
 
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayStr = today.toISOString().split('T')[0]
+
     const checklist: GeneratedChecklist[] = templates.map((item, index) => {
       let dueDate: string | null = null
       if (eventDate) {
         const due = new Date(eventDate)
         due.setDate(due.getDate() - item.weeksBeforeEvent * 7)
-        dueDate = due.toISOString().split('T')[0]
+        dueDate = due < today ? todayStr : due.toISOString().split('T')[0]
       }
       return { title: item.title, dueDate, sortOrder: index }
     })
@@ -82,7 +86,7 @@ export class PlanGeneratorService {
       if (eventDate) {
         const due = new Date(eventDate)
         due.setDate(due.getDate() - item.weeksBeforeEvent * 7)
-        dueDate = due.toISOString().split('T')[0]
+        dueDate = due < today ? todayStr : due.toISOString().split('T')[0]
       }
       return { title: item.title, weeksBeforeEvent: item.weeksBeforeEvent, dueDate }
     })
