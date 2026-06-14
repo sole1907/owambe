@@ -27,6 +27,9 @@ export class AuthService {
 
     if (authError) {
       if (authError.message === 'fetch failed') throw new InternalServerErrorException('Unable to reach auth service')
+      if (authError.message.toLowerCase().includes('password')) {
+        throw new BadRequestException('Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character.')
+      }
       throw new BadRequestException(authError.message)
     }
     if (!authData.user) throw new BadRequestException('Signup failed')
@@ -42,7 +45,12 @@ export class AuthService {
         role: 'user',
       })
 
-    if (dbError) throw new BadRequestException(dbError.message)
+    if (dbError) {
+      if (dbError.message.includes('users_email_key') || dbError.message.includes('unique constraint')) {
+        throw new BadRequestException('An account with this email already exists.')
+      }
+      throw new BadRequestException('Could not create account. Please try again.')
+    }
 
     return { message: 'Check your email to confirm your account' }
   }
@@ -92,6 +100,39 @@ export class AuthService {
 
     const token = this.issueToken(user)
     return { user, token }
+  }
+
+  async forgotPassword(email: string) {
+    const client = this.supabase.getClient()
+    const appUrl = this.config.get<string>('appUrl')
+
+    const { error } = await client.auth.resetPasswordForEmail(email, {
+      redirectTo: `${appUrl}/reset-password`,
+    })
+
+    if (error && error.message === 'fetch failed') {
+      throw new InternalServerErrorException('Unable to reach auth service')
+    }
+
+    // Always return success to avoid email enumeration
+    return { message: 'If an account exists for that email, a reset link has been sent.' }
+  }
+
+  async resetPassword(accessToken: string, password: string) {
+    const client = this.supabase.getClient()
+
+    const { data: { user }, error: userError } = await client.auth.getUser(accessToken)
+    if (userError || !user) throw new BadRequestException('This reset link is invalid or has expired.')
+
+    const { error } = await client.auth.admin.updateUserById(user.id, { password })
+    if (error) {
+      if (error.message.toLowerCase().includes('password')) {
+        throw new BadRequestException('Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character.')
+      }
+      throw new BadRequestException('Could not reset password. Please try again.')
+    }
+
+    return { message: 'Your password has been reset. You can now sign in.' }
   }
 
   private issueToken(user: { id: string; email: string; role: string }) {

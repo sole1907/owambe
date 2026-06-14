@@ -18,6 +18,8 @@ type AuthContextType = {
   exchangeToken: (accessToken: string) => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
   signOut: () => void
+  forgotPassword: (email: string) => Promise<{ message: string }>
+  resetPassword: (accessToken: string, password: string) => Promise<{ message: string }>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -78,8 +80,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }
 
+  const forgotPassword = async (email: string) => {
+    return api.post<{ message: string }>('/auth/forgot-password', { email })
+  }
+
+  const resetPassword = async (accessToken: string, password: string) => {
+    return api.post<{ message: string }>('/auth/reset-password', { access_token: accessToken, password })
+  }
+
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, signUp, signIn, signOut, exchangeToken }}>
+    <AuthContext.Provider value={{ user, token, isLoading, signUp, signIn, signOut, exchangeToken, forgotPassword, resetPassword }}>
       {children}
     </AuthContext.Provider>
   )
