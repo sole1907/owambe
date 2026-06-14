@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common'
+import { BadRequestException, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { JwtService } from '@nestjs/jwt'
 import { SupabaseService } from '../supabase/supabase.service'
@@ -25,7 +25,10 @@ export class AuthService {
       },
     })
 
-    if (authError) throw new BadRequestException(authError.message)
+    if (authError) {
+      if (authError.message === 'fetch failed') throw new InternalServerErrorException('Unable to reach auth service')
+      throw new BadRequestException(authError.message)
+    }
     if (!authData.user) throw new BadRequestException('Signup failed')
 
     // Create user record in our users table
