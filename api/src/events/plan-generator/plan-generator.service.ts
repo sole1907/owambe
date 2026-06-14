@@ -18,8 +18,19 @@ export type GeneratedPlan = {
 export class PlanGeneratorService {
   generate(dto: GeneratePlanDto): { checklist: GeneratedChecklist[]; plan: GeneratedPlan } {
     const eventType = dto.eventType || 'other'
-    const templates = CHECKLIST_TEMPLATES[eventType] ?? CHECKLIST_TEMPLATES['other']
+    const baseTemplates = CHECKLIST_TEMPLATES[eventType] ?? CHECKLIST_TEMPLATES['other']
     const budgetTemplate = BUDGET_TEMPLATES[eventType] ?? BUDGET_TEMPLATES['other']
+
+    const coordinatorWeeksBefore = eventType === 'wedding' ? 16 : eventType === 'corporate' ? 12 : 10
+    const coordinatorTask = dto.wantsCoordinator === true
+      ? { title: 'Hire event coordinator', weeksBeforeEvent: coordinatorWeeksBefore }
+      : dto.wantsCoordinator === false
+        ? { title: 'Designate a day-of point person from family or friends', weeksBeforeEvent: coordinatorWeeksBefore }
+        : null
+
+    const templates = coordinatorTask
+      ? [...baseTemplates, coordinatorTask].sort((a, b) => b.weeksBeforeEvent - a.weeksBeforeEvent)
+      : baseTemplates
 
     const eventDate = dto.eventDate ? new Date(dto.eventDate) : null
 
@@ -28,7 +39,6 @@ export class PlanGeneratorService {
       if (eventDate) {
         const due = new Date(eventDate)
         due.setDate(due.getDate() - item.weeksBeforeEvent * 7)
-        // Only include if due date is in the future
         dueDate = due.toISOString().split('T')[0]
       }
       return { title: item.title, dueDate, sortOrder: index }

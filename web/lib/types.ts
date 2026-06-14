@@ -18,6 +18,7 @@ export type QuestionnaireAnswers = {
   styleTheme: string
   hasExistingVendors: boolean | null
   existingVendorCategories: string[]
+  wantsCoordinator: boolean | null
 }
 
 export const INITIAL_ANSWERS: QuestionnaireAnswers = {
@@ -32,4 +33,5 @@ export const INITIAL_ANSWERS: QuestionnaireAnswers = {
   styleTheme: '',
   hasExistingVendors: null,
   existingVendorCategories: [],
+  wantsCoordinator: null,
 }

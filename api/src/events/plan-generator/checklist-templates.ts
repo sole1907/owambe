@@ -6,7 +6,6 @@ export type ChecklistTemplate = {
 const WEDDING: ChecklistTemplate[] = [
   { title: 'Set your event date and confirm availability', weeksBeforeEvent: 20 },
   { title: 'Book venue', weeksBeforeEvent: 16 },
-  { title: 'Hire event coordinator', weeksBeforeEvent: 16 },
   { title: 'Book caterer', weeksBeforeEvent: 14 },
   { title: 'Book photographer', weeksBeforeEvent: 14 },
   { title: 'Book videographer', weeksBeforeEvent: 14 },
@@ -53,7 +52,6 @@ const NAMING_CEREMONY: ChecklistTemplate[] = [
 const CORPORATE: ChecklistTemplate[] = [
   { title: 'Define event objectives, agenda and target audience', weeksBeforeEvent: 16 },
   { title: 'Book venue', weeksBeforeEvent: 14 },
-  { title: 'Hire event coordinator', weeksBeforeEvent: 12 },
   { title: 'Confirm speakers and presenters', weeksBeforeEvent: 12 },
   { title: 'Book AV and technical equipment', weeksBeforeEvent: 10 },
   { title: 'Arrange catering', weeksBeforeEvent: 10 },
