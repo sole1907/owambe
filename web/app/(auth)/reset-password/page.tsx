@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/context/auth'
+import PasswordInput from '@/components/PasswordInput'
 
 export default function ResetPasswordPage() {
   const { resetPassword } = useAuth()
@@ -74,24 +75,20 @@ export default function ResetPasswordPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">New password</label>
-            <input
-              type="password"
+            <PasswordInput
               required
               minLength={8}
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Confirm new password</label>
-            <input
-              type="password"
+            <PasswordInput
               required
               minLength={8}
               value={form.confirm}
               onChange={(e) => setForm({ ...form, confirm: e.target.value })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
             />
           </div>
           <button
