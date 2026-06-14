@@ -47,7 +47,7 @@ export default function StepGuestCount({ answers, onChange }: Props) {
           placeholder="e.g. 350"
           value={answers.guestCount && !RANGES.find((r) => r.value === answers.guestCount) ? answers.guestCount : ''}
           onChange={(e) => onChange({ guestCount: parseInt(e.target.value) || null })}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
         />
       </div>
     </div>

@@ -24,7 +24,7 @@ export default function StepLocation({ answers, onChange }: Props) {
             placeholder="e.g. Lagos"
             value={answers.city}
             onChange={(e) => onChange({ city: e.target.value })}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
           />
           <div className="flex flex-wrap gap-2 mt-3">
             {POPULAR_CITIES.map((city) => (
@@ -54,7 +54,7 @@ export default function StepLocation({ answers, onChange }: Props) {
             placeholder="e.g. Victoria Island, Landmark Event Centre"
             value={answers.location}
             onChange={(e) => onChange({ location: e.target.value })}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
           />
         </div>
       </div>

@@ -217,7 +217,7 @@ export default function GiftListSection({ eventId }: Props) {
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                 placeholder="e.g. KitchenAid mixer, Travel voucher..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
               />
             </div>
             <div>
@@ -229,7 +229,7 @@ export default function GiftListSection({ eventId }: Props) {
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
                 placeholder="Colour, size, link..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
               />
             </div>
             <div>
@@ -242,7 +242,7 @@ export default function GiftListSection({ eventId }: Props) {
                 value={form.priceEstimate}
                 onChange={(e) => setForm({ ...form, priceEstimate: e.target.value })}
                 placeholder="e.g. 50000"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
               />
             </div>
             <div className="sm:col-span-2">
@@ -254,7 +254,7 @@ export default function GiftListSection({ eventId }: Props) {
                 value={form.storeUrl}
                 onChange={(e) => setForm({ ...form, storeUrl: e.target.value })}
                 placeholder="https://www.jumia.com.ng/..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
               />
             </div>
           </div>

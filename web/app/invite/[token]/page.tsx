@@ -201,7 +201,7 @@ export default function InvitePage() {
                   max={10}
                   value={plusOneCount}
                   onChange={(e) => setPlusOneCount(parseInt(e.target.value) || 1)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
                 />
               </div>
               <div className="mb-4">
@@ -213,7 +213,7 @@ export default function InvitePage() {
                   placeholder="e.g. I'd like to bring my partner"
                   value={plusOneReason}
                   onChange={(e) => setPlusOneReason(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
                 />
               </div>
               <div className="flex gap-2">
