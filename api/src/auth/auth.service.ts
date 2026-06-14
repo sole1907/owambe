@@ -90,13 +90,29 @@ export class AuthService {
     }
 
     // Fetch user from our users table
-    const { data: user, error: dbError } = await client
+    let { data: user, error: dbError } = await client
       .from('users')
       .select('id, email, full_name, role')
       .eq('id', authData.user.id)
       .single()
 
-    if (dbError || !user) throw new UnauthorizedException('User not found')
+    // If the profile row is missing (e.g. signup insert failed), create it now
+    if (dbError) console.error('[signIn] users table error:', JSON.stringify(dbError))
+    if (dbError?.code === 'PGRST116' || !user) {
+      const { data: created, error: createError } = await client
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          email: authData.user.email,
+          full_name: authData.user.user_metadata?.full_name ?? authData.user.email,
+          role: 'user',
+        })
+        .select('id, email, full_name, role')
+        .single()
+
+      if (createError || !created) throw new UnauthorizedException('Could not load your account. Please contact support.')
+      user = created
+    }
 
     const token = this.issueToken(user)
     return { user, token }
