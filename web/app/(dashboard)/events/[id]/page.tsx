@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/context/auth'
 import { api } from '@/lib/api'
@@ -10,6 +10,7 @@ import BudgetSection from '@/components/event/BudgetSection'
 import VendorsSection from '@/components/event/VendorsSection'
 import GuestListSection from '@/components/event/GuestListSection'
 import GiftListSection from '@/components/event/GiftListSection'
+import EditEventModal from '@/components/event/EditEventModal'
 
 type Event = {
   id: string
@@ -46,22 +47,46 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 export default function EventPage() {
   const { id } = useParams<{ id: string }>()
   const { token } = useAuth()
+  const router = useRouter()
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'checklist' | 'budget' | 'vendors' | 'guests' | 'gifts'>('checklist')
   const [pendingRequestCount, setPendingRequestCount] = useState(0)
   const [vendorCategory, setVendorCategory] = useState('')
+  const [editOpen, setEditOpen] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const handleFindVendors = (categorySlug: string) => {
     setVendorCategory(categorySlug)
     setActiveTab('vendors')
   }
 
+  const handleSaveEvent = async (fields: Parameters<typeof api.patch>[1]) => {
+    if (!event || !token) return
+    await api.patch(`/events/${event.id}`, fields, token)
+    setEvent({ ...event, ...(fields as Partial<Event>) })
+    // Refresh to get recalculated due dates
+    const updated = await api.get<Event>(`/events/${event.id}`, token)
+    setEvent(updated)
+  }
+
+  const handleDelete = async () => {
+    if (!event || !token) return
+    setDeleting(true)
+    try {
+      await api.delete(`/events/${event.id}`, token)
+      router.push('/dashboard')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   useEffect(() => {
     if (!token || !event) return
     api
-      .get<{ length: number }>(`/events/${event.id}/plus-one-requests`, token)
-      .then((data: unknown) => setPendingRequestCount(Array.isArray(data) ? data.length : 0))
+      .get<unknown>(`/events/${event.id}/plus-one-requests`, token)
+      .then((data) => setPendingRequestCount(Array.isArray(data) ? data.length : 0))
       .catch(() => null)
   }, [event, token])
 
@@ -92,9 +117,12 @@ export default function EventPage() {
     )
   }
 
-  const eventDate = event.event_date
+  const isApproxDate = !event.event_date && !!event.event_date_approximate
+  const eventDateLabel = event.event_date
     ? new Date(event.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
     : event.event_date_approximate || 'Date TBC'
+
+  const completedCount = event.checklist_items.filter((i) => i.is_completed).length
 
   return (
     <div>
@@ -103,25 +131,44 @@ export default function EventPage() {
         <Link href="/dashboard" className="text-sm text-gray-400 hover:text-black mb-3 inline-block">
           ← Dashboard
         </Link>
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{event.title}</h1>
-            <div className="flex flex-wrap gap-3 mt-2">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-gray-900 truncate">{event.title}</h1>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
               <span className="text-sm text-gray-500">{EVENT_TYPE_LABELS[event.event_type] || event.event_type}</span>
               {event.city && <span className="text-sm text-gray-500">· {event.city}</span>}
-              <span className="text-sm text-gray-500">· {eventDate}</span>
+              <span className="text-sm text-gray-500 flex items-center gap-1.5">
+                · {eventDateLabel}
+                {isApproxDate && (
+                  <span className="text-xs bg-amber-50 text-amber-600 border border-amber-200 rounded-full px-2 py-0.5 font-medium">
+                    Estimated
+                  </span>
+                )}
+              </span>
               {event.guest_count_estimate && (
                 <span className="text-sm text-gray-500">· ~{event.guest_count_estimate.toLocaleString()} guests</span>
               )}
+              {event.style_theme && (
+                <span className="text-sm text-gray-500">· {event.style_theme}</span>
+              )}
             </div>
           </div>
-          <Link
-            href={`/checkin?eventId=${event.id}`}
-            target="_blank"
-            className="text-xs bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 transition flex-shrink-0"
-          >
-            Check-in →
-          </Link>
+
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setEditOpen(true)}
+              className="text-xs border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition"
+            >
+              Edit
+            </button>
+            <Link
+              href={`/checkin?eventId=${event.id}`}
+              target="_blank"
+              className="text-xs bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 transition"
+            >
+              Check-in →
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -155,7 +202,6 @@ export default function EventPage() {
           onFindVendors={handleFindVendors}
         />
       )}
-
       {activeTab === 'budget' && event.event_plans && (
         <BudgetSection
           eventId={event.id}
@@ -163,11 +209,9 @@ export default function EventPage() {
           initialBreakdown={event.event_plans.budget_breakdown}
         />
       )}
-
       {activeTab === 'budget' && !event.event_plans && (
         <p className="text-gray-400 text-sm">No budget plan available.</p>
       )}
-
       {activeTab === 'vendors' && (
         <VendorsSection
           eventId={event.id}
@@ -177,6 +221,54 @@ export default function EventPage() {
       )}
       {activeTab === 'guests' && <GuestListSection eventId={event.id} />}
       {activeTab === 'gifts' && <GiftListSection eventId={event.id} />}
+
+      {/* Danger zone */}
+      <div className="mt-12 pt-6 border-t border-gray-100">
+        {!deleteConfirm ? (
+          <button
+            onClick={() => setDeleteConfirm(true)}
+            className="text-sm text-red-500 hover:text-red-700 hover:underline transition"
+          >
+            Delete this event
+          </button>
+        ) : (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 max-w-md">
+            {completedCount > 0 ? (
+              <p className="text-sm text-red-700 mb-3">
+                <span className="font-medium">You have {completedCount} completed checklist {completedCount === 1 ? 'item' : 'items'}.</span> Deleting this event will permanently remove all your progress, vendors, guests, and gifts. This cannot be undone.
+              </p>
+            ) : (
+              <p className="text-sm text-red-700 mb-3">
+                Are you sure you want to delete <span className="font-medium">{event.title}</span>? This will permanently remove the event and all associated data.
+              </p>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition"
+              >
+                {deleting ? 'Deleting...' : 'Yes, delete'}
+              </button>
+              <button
+                onClick={() => setDeleteConfirm(false)}
+                className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Edit modal */}
+      {editOpen && (
+        <EditEventModal
+          event={event}
+          onSave={handleSaveEvent}
+          onClose={() => setEditOpen(false)}
+        />
+      )}
     </div>
   )
 }

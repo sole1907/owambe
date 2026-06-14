@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, UseGuards } from '@nestjs/common'
 import { EventsService } from './events.service'
 import { VendorsService } from '../vendors/vendors.service'
 import { GeneratePlanDto } from './dto/generate-plan.dto'
@@ -26,6 +26,29 @@ export class EventsController {
   @Get(':id')
   getEvent(@Param('id') id: string, @CurrentUser() user: any) {
     return this.events.getEvent(id, user.id)
+  }
+
+  @Patch(':id')
+  updateEvent(
+    @Param('id') id: string,
+    @Body() body: {
+      title?: string
+      eventDate?: string
+      eventDateApproximate?: string
+      city?: string
+      guestCount?: number | null
+      budgetEstimate?: number | null
+      styleTheme?: string
+    },
+    @CurrentUser() user: any,
+  ) {
+    return this.events.updateEvent(id, body, user.id)
+  }
+
+  @Delete(':id')
+  @HttpCode(200)
+  deleteEvent(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.events.deleteEvent(id, user.id)
   }
 
   @Post(':id/checklist')

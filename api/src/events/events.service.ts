@@ -161,6 +161,93 @@ export class EventsService {
     return { success: true }
   }
 
+  async updateEvent(
+    eventId: string,
+    updates: {
+      title?: string
+      eventDate?: string
+      eventDateApproximate?: string
+      city?: string
+      guestCount?: number | null
+      budgetEstimate?: number | null
+      styleTheme?: string
+    },
+    userId: string,
+  ) {
+    const client = this.supabase.getClient()
+
+    const { error } = await client
+      .from('events')
+      .update({
+        ...(updates.title !== undefined && { title: updates.title }),
+        ...(updates.eventDate !== undefined && { event_date: updates.eventDate || null }),
+        ...(updates.eventDateApproximate !== undefined && { event_date_approximate: updates.eventDateApproximate || null }),
+        ...(updates.city !== undefined && { city: updates.city || null }),
+        ...(updates.guestCount !== undefined && { guest_count_estimate: updates.guestCount }),
+        ...(updates.budgetEstimate !== undefined && { budget_estimate: updates.budgetEstimate }),
+        ...(updates.styleTheme !== undefined && { style_theme: updates.styleTheme || null }),
+      })
+      .eq('id', eventId)
+      .eq('user_id', userId)
+
+    if (error) throw new InternalServerErrorException(error.message)
+
+    // Recalculate checklist due dates when the date changes
+    const dateChanged = updates.eventDate !== undefined || updates.eventDateApproximate !== undefined
+    if (dateChanged) {
+      const eventDate = updates.eventDate
+        ? new Date(updates.eventDate)
+        : this.planGenerator.parseApproximateDate(updates.eventDateApproximate ?? '')
+
+      const { data: planData } = await client
+        .from('event_plans')
+        .select('milestones')
+        .eq('event_id', eventId)
+        .single()
+
+      if (planData?.milestones && Array.isArray(planData.milestones)) {
+        for (const milestone of planData.milestones as { title: string; weeksBeforeEvent: number }[]) {
+          let dueDate: string | null = null
+          if (eventDate) {
+            const due = new Date(eventDate)
+            due.setDate(due.getDate() - milestone.weeksBeforeEvent * 7)
+            dueDate = due.toISOString().split('T')[0]
+          }
+          await client
+            .from('checklist_items')
+            .update({ due_date: dueDate })
+            .eq('event_id', eventId)
+            .eq('title', milestone.title)
+        }
+      }
+    }
+
+    return { success: true }
+  }
+
+  async deleteEvent(eventId: string, userId: string) {
+    const client = this.supabase.getClient()
+
+    const { data: completed } = await client
+      .from('checklist_items')
+      .select('id')
+      .eq('event_id', eventId)
+      .eq('is_completed', true)
+      .limit(1)
+
+    const hasCompletedItems = completed && completed.length > 0
+
+    const { error } = await client
+      .from('events')
+      .delete()
+      .eq('id', eventId)
+      .eq('user_id', userId)
+
+    if (error) throw new InternalServerErrorException(error.message)
+
+    return { success: true, hadProgress: hasCompletedItems }
+  }
+
   async updateBudgetBreakdown(eventId: string, budgetBreakdown: object[], _userId: string) {
     const client = this.supabase.getClient()
 
