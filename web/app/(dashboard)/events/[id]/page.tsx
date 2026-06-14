@@ -50,6 +50,12 @@ export default function EventPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'checklist' | 'budget' | 'vendors' | 'guests' | 'gifts'>('checklist')
   const [pendingRequestCount, setPendingRequestCount] = useState(0)
+  const [vendorCategory, setVendorCategory] = useState('')
+
+  const handleFindVendors = (categorySlug: string) => {
+    setVendorCategory(categorySlug)
+    setActiveTab('vendors')
+  }
 
   useEffect(() => {
     if (!token || !event) return
@@ -143,7 +149,11 @@ export default function EventPage() {
 
       {/* Tab content */}
       {activeTab === 'checklist' && (
-        <ChecklistSection eventId={event.id} initialItems={event.checklist_items} />
+        <ChecklistSection
+          eventId={event.id}
+          initialItems={event.checklist_items}
+          onFindVendors={handleFindVendors}
+        />
       )}
 
       {activeTab === 'budget' && event.event_plans && (
@@ -158,7 +168,13 @@ export default function EventPage() {
         <p className="text-gray-400 text-sm">No budget plan available.</p>
       )}
 
-      {activeTab === 'vendors' && <VendorsSection eventId={event.id} />}
+      {activeTab === 'vendors' && (
+        <VendorsSection
+          eventId={event.id}
+          initialCategory={vendorCategory}
+          checklistItems={event.checklist_items}
+        />
+      )}
       {activeTab === 'guests' && <GuestListSection eventId={event.id} />}
       {activeTab === 'gifts' && <GiftListSection eventId={event.id} />}
     </div>

@@ -10,8 +10,24 @@ type GiftItem = {
   title: string
   description: string | null
   price_estimate: number | null
+  store_url: string | null
   is_purchased: boolean
   purchased_by: string | null
+}
+
+function storeName(url: string): string {
+  try {
+    const host = new URL(url).hostname.replace('www.', '')
+    if (host.includes('jumia')) return 'Jumia'
+    if (host.includes('konga')) return 'Konga'
+    if (host.includes('amazon')) return 'Amazon'
+    if (host.includes('slot')) return 'Slot'
+    if (host.includes('payporte')) return 'PayPorte'
+    if (host.includes('jiji')) return 'Jiji'
+    return host.split('.')[0].charAt(0).toUpperCase() + host.split('.')[0].slice(1)
+  } catch {
+    return 'Store'
+  }
 }
 
 type Event = {
@@ -185,11 +201,23 @@ export default function PublicGiftListPage() {
                       )}
                     </div>
 
-                    {item.price_estimate && (
-                      <span className="text-sm font-medium text-gray-700 flex-shrink-0">
-                        ₦{item.price_estimate.toLocaleString()}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      {item.price_estimate && (
+                        <span className="text-sm font-medium text-gray-700">
+                          ₦{item.price_estimate.toLocaleString()}
+                        </span>
+                      )}
+                      {item.store_url && !item.is_purchased && (
+                        <a
+                          href={item.store_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs px-3 py-1.5 bg-black text-white rounded-lg hover:bg-gray-800 whitespace-nowrap"
+                        >
+                          Buy on {storeName(item.store_url)} →
+                        </a>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

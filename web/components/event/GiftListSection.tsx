@@ -10,6 +10,7 @@ type GiftItem = {
   title: string
   description: string | null
   price_estimate: number | null
+  store_url: string | null
   is_purchased: boolean
   purchased_by: string | null
   sort_order: number
@@ -28,7 +29,7 @@ export default function GiftListSection({ eventId }: Props) {
   const [data, setData] = useState<GiftListData | null>(null)
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ title: '', description: '', priceEstimate: '' })
+  const [form, setForm] = useState({ title: '', description: '', priceEstimate: '', storeUrl: '' })
   const [saving, setSaving] = useState(false)
   const [enablingCash, setEnablingCash] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -57,11 +58,12 @@ export default function GiftListSection({ eventId }: Props) {
           title: form.title.trim(),
           description: form.description.trim() || undefined,
           priceEstimate: form.priceEstimate ? parseInt(form.priceEstimate) : undefined,
+          storeUrl: form.storeUrl.trim() || undefined,
         },
         token ?? undefined,
       )
       await fetchData()
-      setForm({ title: '', description: '', priceEstimate: '' })
+      setForm({ title: '', description: '', priceEstimate: '', storeUrl: '' })
       setShowForm(false)
     } finally {
       setSaving(false)
@@ -195,7 +197,7 @@ export default function GiftListSection({ eventId }: Props) {
           <span className="text-gray-400 font-normal text-sm">({items.length})</span>
         </h2>
         <button
-          onClick={() => { setForm({ title: '', description: '', priceEstimate: '' }); setShowForm(true) }}
+          onClick={() => { setForm({ title: '', description: '', priceEstimate: '', storeUrl: '' }); setShowForm(true) }}
           className="text-sm bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition"
         >
           + Add item
@@ -215,7 +217,7 @@ export default function GiftListSection({ eventId }: Props) {
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                 placeholder="e.g. KitchenAid mixer, Travel voucher..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
               />
             </div>
             <div>
@@ -227,7 +229,7 @@ export default function GiftListSection({ eventId }: Props) {
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
                 placeholder="Colour, size, link..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
               />
             </div>
             <div>
@@ -240,7 +242,19 @@ export default function GiftListSection({ eventId }: Props) {
                 value={form.priceEstimate}
                 onChange={(e) => setForm({ ...form, priceEstimate: e.target.value })}
                 placeholder="e.g. 50000"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Store link <span className="text-gray-400">(optional — Jumia, Konga, Amazon, etc.)</span>
+              </label>
+              <input
+                type="url"
+                value={form.storeUrl}
+                onChange={(e) => setForm({ ...form, storeUrl: e.target.value })}
+                placeholder="https://www.jumia.com.ng/..."
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
               />
             </div>
           </div>
@@ -311,6 +325,16 @@ export default function GiftListSection({ eventId }: Props) {
                   <span className="text-xs text-gray-500">
                     ₦{item.price_estimate.toLocaleString()}
                   </span>
+                )}
+                {item.store_url && (
+                  <a
+                    href={item.store_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-500 hover:underline"
+                  >
+                    View →
+                  </a>
                 )}
                 <button
                   onClick={() => handleDelete(item.id)}

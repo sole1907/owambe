@@ -14,7 +14,8 @@ type AuthContextType = {
   user: User | null
   token: string | null
   isLoading: boolean
-  signUp: (email: string, password: string, fullName: string, phone?: string) => Promise<void>
+  signUp: (email: string, password: string, fullName: string, phone?: string) => Promise<{ message: string }>
+  exchangeToken: (accessToken: string) => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
   signOut: () => void
 }
@@ -46,11 +47,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signUp = async (email: string, password: string, fullName: string, phone?: string) => {
-    const res = await api.post<{ user: User; token: string }>('/auth/signup', {
+    const res = await api.post<{ message: string }>('/auth/signup', {
       email,
       password,
       fullName,
       phone,
+    })
+    return res
+  }
+
+  const exchangeToken = async (accessToken: string) => {
+    const res = await api.post<{ user: User; token: string }>('/auth/exchange-token', {
+      access_token: accessToken,
     })
     localStorage.setItem(TOKEN_KEY, res.token)
     setToken(res.token)
@@ -71,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, token, isLoading, signUp, signIn, signOut, exchangeToken }}>
       {children}
     </AuthContext.Provider>
   )

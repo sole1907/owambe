@@ -20,6 +20,15 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+@layer base {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    background-color: white;
+    color: #171717;
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

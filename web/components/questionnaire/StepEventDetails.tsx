@@ -19,7 +19,7 @@ export default function StepEventDetails({ answers, onChange }: Props) {
             placeholder="e.g. Tunde & Amaka's Wedding"
             value={answers.eventTitle}
             onChange={(e) => onChange({ eventTitle: e.target.value })}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
           />
         </div>
 
@@ -29,7 +29,7 @@ export default function StepEventDetails({ answers, onChange }: Props) {
             type="date"
             value={answers.eventDate}
             onChange={(e) => onChange({ eventDate: e.target.value, eventDateApproximate: '' })}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
           />
         </div>
 
@@ -43,7 +43,7 @@ export default function StepEventDetails({ answers, onChange }: Props) {
             placeholder="e.g. December 2026, Q1 2027"
             value={answers.eventDateApproximate}
             onChange={(e) => onChange({ eventDateApproximate: e.target.value, eventDate: '' })}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
           />
         </div>
       </div>

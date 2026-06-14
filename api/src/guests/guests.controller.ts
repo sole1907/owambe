@@ -29,6 +29,15 @@ export class GuestsController {
     return this.guests.addGuest(eventId, dto, user.id)
   }
 
+  @Post('events/:eventId/guests/import')
+  importGuests(
+    @Param('eventId') eventId: string,
+    @Body() body: { guests: { fullName: string; email: string; phone?: string; allocation?: number }[] },
+    @CurrentUser() user: any,
+  ) {
+    return this.guests.importGuests(eventId, body.guests, user.id)
+  }
+
   @Patch('guests/:id')
   updateGuest(@Param('id') id: string, @Body() dto: UpdateGuestDto, @CurrentUser() user: any) {
     return this.guests.updateGuest(id, dto, user.id)

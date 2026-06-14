@@ -67,7 +67,15 @@ export function makeSupabaseMock(fromMap: Record<string, ReturnType<typeof q>> =
           .fn()
           .mockResolvedValue({ data: { user: { id: 'user-id-1' } }, error: null }),
       },
+      signUp: jest.fn().mockResolvedValue({
+        data: { user: { id: 'user-id-1' } },
+        error: null,
+      }),
       signInWithPassword: jest.fn().mockResolvedValue({
+        data: { user: { id: 'user-id-1' } },
+        error: null,
+      }),
+      getUser: jest.fn().mockResolvedValue({
         data: { user: { id: 'user-id-1' } },
         error: null,
       }),

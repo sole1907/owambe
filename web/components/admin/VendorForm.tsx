@@ -123,7 +123,7 @@ export default function VendorForm({ vendorId, initialData }: Props) {
               required
               value={form.name}
               onChange={(e) => set('name', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
             />
           </div>
           <div>
@@ -132,7 +132,7 @@ export default function VendorForm({ vendorId, initialData }: Props) {
               required
               value={form.categoryId}
               onChange={(e) => set('categoryId', e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black bg-white"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black bg-white"
             >
               <option value="">Select category</option>
               {categories.map((c) => (
@@ -150,7 +150,7 @@ export default function VendorForm({ vendorId, initialData }: Props) {
               value={form.city}
               onChange={(e) => set('city', e.target.value)}
               placeholder="e.g. Lagos"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
             />
           </div>
           <div className="sm:col-span-2">
@@ -161,7 +161,7 @@ export default function VendorForm({ vendorId, initialData }: Props) {
               value={form.location}
               onChange={(e) => set('location', e.target.value)}
               placeholder="e.g. Victoria Island, Lagos"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
             />
           </div>
           <div className="sm:col-span-2">
@@ -170,7 +170,7 @@ export default function VendorForm({ vendorId, initialData }: Props) {
               value={form.description}
               onChange={(e) => set('description', e.target.value)}
               rows={3}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black resize-none"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black resize-none"
             />
           </div>
         </div>
@@ -188,7 +188,7 @@ export default function VendorForm({ vendorId, initialData }: Props) {
               value={form.priceMin}
               onChange={(e) => set('priceMin', e.target.value)}
               placeholder="e.g. 50000"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
             />
           </div>
           <div>
@@ -199,7 +199,7 @@ export default function VendorForm({ vendorId, initialData }: Props) {
               value={form.priceMax}
               onChange={(e) => set('priceMax', e.target.value)}
               placeholder="e.g. 200000"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
             />
           </div>
         </div>
@@ -223,7 +223,7 @@ export default function VendorForm({ vendorId, initialData }: Props) {
                 value={form[field]}
                 onChange={(e) => set(field, e.target.value)}
                 placeholder={placeholder}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
               />
             </div>
           ))}
@@ -242,7 +242,7 @@ export default function VendorForm({ vendorId, initialData }: Props) {
             onChange={(e) => set('photos', e.target.value)}
             rows={4}
             placeholder={'https://...\nhttps://...'}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-black resize-none"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 font-mono focus:outline-none focus:ring-2 focus:ring-black resize-none"
           />
         </div>
       </section>
