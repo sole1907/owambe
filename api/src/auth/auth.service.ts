@@ -14,10 +14,11 @@ export class AuthService {
   ) {}
 
   async signUp(dto: SignUpDto) {
-    const client = this.supabase.getClient()
+    const authClient = this.supabase.getAuthClient()
+    const adminClient = this.supabase.getAdminClient()
     const appUrl = this.config.get<string>('appUrl')
 
-    const { data: authData, error: authError } = await client.auth.signUp({
+    const { data: authData, error: authError } = await authClient.auth.signUp({
       email: dto.email,
       password: dto.password,
       options: {
@@ -34,8 +35,7 @@ export class AuthService {
     }
     if (!authData.user) throw new BadRequestException('Signup failed')
 
-    // Create user record in our users table
-    const { error: dbError } = await client
+    const { error: dbError } = await adminClient
       .from('users')
       .insert({
         id: authData.user.id,
@@ -56,12 +56,13 @@ export class AuthService {
   }
 
   async exchangeToken(supabaseAccessToken: string) {
-    const client = this.supabase.getClient()
+    const authClient = this.supabase.getAuthClient()
+    const adminClient = this.supabase.getAdminClient()
 
-    const { data: { user }, error } = await client.auth.getUser(supabaseAccessToken)
+    const { data: { user }, error } = await authClient.auth.getUser(supabaseAccessToken)
     if (error || !user) throw new UnauthorizedException('Invalid or expired token')
 
-    const { data: dbUser, error: dbError } = await client
+    const { data: dbUser, error: dbError } = await adminClient
       .from('users')
       .select('id, email, full_name, role')
       .eq('id', user.id)
@@ -73,10 +74,10 @@ export class AuthService {
   }
 
   async signIn(dto: SignInDto) {
-    const client = this.supabase.getClient()
+    const authClient = this.supabase.getAuthClient()
+    const adminClient = this.supabase.getAdminClient()
 
-    // Authenticate via Supabase Auth
-    const { data: authData, error: authError } = await client.auth.signInWithPassword({
+    const { data: authData, error: authError } = await authClient.auth.signInWithPassword({
       email: dto.email,
       password: dto.password,
     })
@@ -89,40 +90,22 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password')
     }
 
-    // Fetch user from our users table
-    let { data: user, error: dbError } = await client
+    const { data: user, error: dbError } = await adminClient
       .from('users')
       .select('id, email, full_name, role')
       .eq('id', authData.user.id)
       .single()
 
-    // If the profile row is missing (e.g. signup insert failed), create it now
-    if (dbError) console.error('[signIn] users table error:', JSON.stringify(dbError))
-    if (dbError?.code === 'PGRST116' || !user) {
-      const { data: created, error: createError } = await client
-        .from('users')
-        .insert({
-          id: authData.user.id,
-          email: authData.user.email,
-          full_name: authData.user.user_metadata?.full_name ?? authData.user.email,
-          role: 'user',
-        })
-        .select('id, email, full_name, role')
-        .single()
+    if (dbError || !user) throw new UnauthorizedException('Could not load your account. Please contact support.')
 
-      if (createError || !created) throw new UnauthorizedException('Could not load your account. Please contact support.')
-      user = created
-    }
-
-    const token = this.issueToken(user)
-    return { user, token }
+    return { user, token: this.issueToken(user) }
   }
 
   async forgotPassword(email: string) {
-    const client = this.supabase.getClient()
+    const authClient = this.supabase.getAuthClient()
     const appUrl = this.config.get<string>('appUrl')
 
-    const { error } = await client.auth.resetPasswordForEmail(email, {
+    const { error } = await authClient.auth.resetPasswordForEmail(email, {
       redirectTo: `${appUrl}/reset-password`,
     })
 
@@ -130,17 +113,16 @@ export class AuthService {
       throw new InternalServerErrorException('Unable to reach auth service')
     }
 
-    // Always return success to avoid email enumeration
     return { message: 'If an account exists for that email, a reset link has been sent.' }
   }
 
   async resetPassword(accessToken: string, password: string) {
-    const client = this.supabase.getClient()
+    const adminClient = this.supabase.getAdminClient()
 
-    const { data: { user }, error: userError } = await client.auth.getUser(accessToken)
+    const { data: { user }, error: userError } = await adminClient.auth.getUser(accessToken)
     if (userError || !user) throw new BadRequestException('This reset link is invalid or has expired.')
 
-    const { error } = await client.auth.admin.updateUserById(user.id, { password })
+    const { error } = await adminClient.auth.admin.updateUserById(user.id, { password })
     if (error) {
       if (error.message.toLowerCase().includes('password')) {
         throw new BadRequestException('Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character.')
