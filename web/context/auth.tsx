@@ -16,7 +16,7 @@ type AuthContextType = {
   isLoading: boolean
   signUp: (email: string, password: string, fullName: string, phone?: string) => Promise<{ message: string }>
   exchangeToken: (accessToken: string) => Promise<void>
-  signIn: (email: string, password: string) => Promise<void>
+  signIn: (email: string, password: string) => Promise<User>
   signOut: () => void
   forgotPassword: (email: string) => Promise<{ message: string }>
   resetPassword: (accessToken: string, password: string) => Promise<{ message: string }>
@@ -72,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(TOKEN_KEY, res.token)
     setToken(res.token)
     setUser(res.user)
+    return res.user
   }
 
   const signOut = () => {

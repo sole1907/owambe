@@ -26,8 +26,8 @@ function LoginForm() {
     setError('')
     setLoading(true)
     try {
-      await signIn(form.email, form.password)
-      router.push('/dashboard')
+      const user = await signIn(form.email, form.password)
+      router.push(user.role === 'vendor' ? '/vendor/dashboard' : '/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {

@@ -215,8 +215,7 @@ export default function EventPage() {
       {activeTab === 'vendors' && (
         <VendorsSection
           eventId={event.id}
-          initialCategory={vendorCategory}
-          checklistItems={event.checklist_items}
+          guestCount={event.guest_count_estimate}
         />
       )}
       {activeTab === 'guests' && <GuestListSection eventId={event.id} />}

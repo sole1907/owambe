@@ -30,6 +30,53 @@ type PlusOneOutcomeEmailParams = {
   newAllocation?: number
 }
 
+type VendorInquiryEmailParams = {
+  to: string
+  vendorName: string
+  eventTitle: string
+  eventDate: string
+  eventCity: string
+  expiresAt: string
+}
+
+type VendorResponseEmailParams = {
+  to: string
+  organizerName: string
+  vendorName: string
+  eventTitle: string
+  eventDate: string
+  available: boolean
+  vendorNotes?: string
+}
+
+type CommitmentConfirmedOrganizerParams = {
+  to: string
+  organizerName: string
+  vendorName: string
+  eventTitle: string
+  eventDate: string
+  amountPaid: number
+}
+
+type CommitmentConfirmedVendorParams = {
+  to: string
+  vendorName: string
+  organizerName: string
+  eventTitle: string
+  eventDate: string
+  amountHeld: number
+}
+
+type ReviewReminderParams = {
+  to: string
+  organizerName: string
+  vendorName: string
+  eventTitle: string
+  interestId: string
+  reminderNumber: number
+  isLast: boolean
+}
+
 // ─── Shared base template ────────────────────────────────────────────────────
 
 function base(content: string): string {
@@ -319,6 +366,232 @@ export class EmailService {
       })
     } catch (err) {
       this.logger.error('Failed to send plus-one outcome email', err)
+    }
+  }
+
+  // ── 4. Vendor inquiry (to vendor) ────────────────────────────────────────────
+
+  async sendVendorInquiry(params: VendorInquiryEmailParams) {
+    const deadline = new Date(params.expiresAt).toLocaleString('en-NG', {
+      day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+    })
+
+    const content = `
+      ${heading('New availability enquiry')}
+      ${subtext(`Hi <strong style="color:#111;">${params.vendorName}</strong>, you have a new enquiry through Owambe.`)}
+
+      ${eventCard(params.eventTitle, params.eventDate, params.eventCity)}
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#fffbeb;border-radius:12px;border:1px solid #fde68a;margin-bottom:24px;">
+        <tr>
+          <td style="padding:16px 20px;">
+            <p style="margin:0;font-size:13px;color:#92400e;">
+              ⏱ Please respond by <strong>${deadline}</strong> — after this the enquiry will expire automatically.
+            </p>
+          </td>
+        </tr>
+      </table>
+
+      <p style="margin:0 0 20px;font-size:14px;color:#6b7280;text-align:center;">
+        Log in to your vendor portal to confirm your availability.
+      </p>
+    `
+
+    if (!this.resend) return
+    try {
+      await this.resend.emails.send({
+        from: this.from,
+        to: params.to,
+        subject: `New availability enquiry — ${params.eventTitle}`,
+        html: base(content),
+      })
+    } catch (err) {
+      this.logger.error('Failed to send vendor inquiry email', err)
+    }
+  }
+
+  // ── 5. Vendor response notification (to organiser) ───────────────────────────
+
+  async sendVendorResponse(params: VendorResponseEmailParams) {
+    const available = params.available
+
+    const statusBlock = available
+      ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+               style="background:#f0fdf4;border-radius:12px;border:1px solid #bbf7d0;margin-bottom:24px;">
+          <tr><td style="padding:16px 20px;">
+            <p style="margin:0;font-size:15px;color:#166534;font-weight:600;">
+              ✅ ${params.vendorName} is available on your event date
+            </p>
+            ${params.vendorNotes ? `<p style="margin:8px 0 0;font-size:13px;color:#166534;">"${params.vendorNotes}"</p>` : ''}
+          </td></tr>
+        </table>`
+      : `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+               style="background:#fef2f2;border-radius:12px;border:1px solid #fecaca;margin-bottom:24px;">
+          <tr><td style="padding:16px 20px;">
+            <p style="margin:0;font-size:15px;color:#991b1b;font-weight:600;">
+              ❌ ${params.vendorName} is not available on your event date
+            </p>
+            ${params.vendorNotes ? `<p style="margin:8px 0 0;font-size:13px;color:#991b1b;">"${params.vendorNotes}"</p>` : ''}
+          </td></tr>
+        </table>`
+
+    const content = `
+      ${heading('Vendor availability update')}
+      ${subtext(`Hi <strong style="color:#111;">${params.organizerName}</strong>,`)}
+
+      ${eventCard(params.eventTitle, params.eventDate, '')}
+      ${statusBlock}
+
+      <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
+        ${available ? 'You can now commit this vendor from your event dashboard.' : 'Consider choosing your B or C option for this category.'}
+      </p>
+    `
+
+    if (!this.resend) return
+    try {
+      await this.resend.emails.send({
+        from: this.from,
+        to: params.to,
+        subject: available
+          ? `${params.vendorName} is available for ${params.eventTitle}`
+          : `${params.vendorName} is not available — ${params.eventTitle}`,
+        html: base(content),
+      })
+    } catch (err) {
+      this.logger.error('Failed to send vendor response email', err)
+    }
+  }
+
+  // ── 6. Commitment confirmed — to organiser ───────────────────────────────────
+
+  async sendCommitmentConfirmedToOrganiser(params: CommitmentConfirmedOrganizerParams) {
+    const fmt = (n: number) =>
+      new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(n)
+
+    const content = `
+      ${heading('Commitment fee paid ✅')}
+      ${subtext(`Hi <strong style="color:#111;">${params.organizerName}</strong>, your commitment fee has been received.`)}
+
+      ${eventCard(params.eventTitle, params.eventDate, '')}
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#f0fdf4;border-radius:12px;border:1px solid #bbf7d0;margin-bottom:24px;">
+        <tr><td style="padding:18px 20px;">
+          <p style="margin:0 0 6px;font-size:15px;font-weight:600;color:#166534;">
+            ${params.vendorName} is now committed to your event
+          </p>
+          <p style="margin:0;font-size:13px;color:#166534;">
+            Commitment fee paid: <strong>${fmt(params.amountPaid)}</strong> — held securely until after your event.
+          </p>
+        </td></tr>
+      </table>
+
+      <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
+        The balance will be settled directly with the vendor via your agreed payment method after the event.
+      </p>
+    `
+
+    if (!this.resend) return
+    try {
+      await this.resend.emails.send({
+        from: this.from,
+        to: params.to,
+        subject: `${params.vendorName} is committed to ${params.eventTitle}`,
+        html: base(content),
+      })
+    } catch (err) {
+      this.logger.error('Failed to send commitment confirmation to organiser', err)
+    }
+  }
+
+  // ── 7. Commitment confirmed — to vendor ──────────────────────────────────────
+
+  async sendCommitmentConfirmedToVendor(params: CommitmentConfirmedVendorParams) {
+    const fmt = (n: number) =>
+      new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(n)
+
+    const content = `
+      ${heading('New commitment received 🎉')}
+      ${subtext(`Hi <strong style="color:#111;">${params.vendorName}</strong>, you have a confirmed booking through Owambe.`)}
+
+      ${eventCard(params.eventTitle, params.eventDate, '')}
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#f0fdf4;border-radius:12px;border:1px solid #bbf7d0;margin-bottom:24px;">
+        <tr><td style="padding:18px 20px;">
+          <p style="margin:0 0 4px;font-size:13px;color:#166534;">Booked by</p>
+          <p style="margin:0 0 10px;font-size:15px;font-weight:600;color:#111;">${params.organizerName}</p>
+          <p style="margin:0;font-size:13px;color:#166534;">
+            Commitment fee held in escrow: <strong>${fmt(params.amountHeld)}</strong>
+          </p>
+        </td></tr>
+      </table>
+
+      <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
+        Please ensure the date is blocked in your availability calendar. The balance will be settled on or after the event day.
+      </p>
+    `
+
+    if (!this.resend) return
+    try {
+      await this.resend.emails.send({
+        from: this.from,
+        to: params.to,
+        subject: `You have a confirmed booking — ${params.eventTitle}`,
+        html: base(content),
+      })
+    } catch (err) {
+      this.logger.error('Failed to send commitment confirmation to vendor', err)
+    }
+  }
+
+  // ── 8. Review reminder ───────────────────────────────────────────────────────
+
+  async sendReviewReminder(params: ReviewReminderParams) {
+    const appUrl = process.env.APP_URL ?? 'http://localhost:3000'
+    const reviewUrl = `${appUrl}/review/${params.interestId}`
+
+    const urgency = params.isLast
+      ? `<p style="margin:0 0 16px;font-size:13px;color:#9ca3af;text-align:center;">This is our last reminder — we won't send any more.</p>`
+      : ''
+
+    const content = `
+      ${heading('How did it go? ⭐')}
+      ${subtext(`Hi <strong style="color:#111;">${params.organizerName}</strong>, your event has passed — we'd love to hear how your vendor performed.`)}
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#f9fafb;border-radius:12px;border:1px solid #e5e7eb;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 2px;font-size:12px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Vendor</p>
+          <p style="margin:0 0 6px;font-size:18px;font-weight:700;color:#111;">${params.vendorName}</p>
+          <p style="margin:0;font-size:13px;color:#6b7280;">for <strong>${params.eventTitle}</strong></p>
+        </td></tr>
+      </table>
+
+      <p style="margin:0 0 20px;font-size:14px;color:#6b7280;text-align:center;">
+        Takes less than a minute. Your review helps other event organisers make the right choice.
+      </p>
+
+      ${primaryBtn('Leave a review', reviewUrl)}
+
+      ${divider()}
+      ${urgency}
+      <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
+        Reminder ${params.reminderNumber} of ${params.isLast ? params.reminderNumber : '...'}
+      </p>
+    `
+
+    if (!this.resend) return
+    try {
+      await this.resend.emails.send({
+        from: this.from,
+        to: params.to,
+        subject: `How was ${params.vendorName}? Leave a quick review`,
+        html: base(content),
+      })
+    } catch (err) {
+      this.logger.error('Failed to send review reminder', err)
     }
   }
 }

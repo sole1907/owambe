@@ -10,6 +10,10 @@ import { InvitesModule } from './invites/invites.module'
 import { EmailModule } from './email/email.module'
 import { GiftsModule } from './gifts/gifts.module'
 import { AnalyticsModule } from './analytics/analytics.module'
+import { VendorPortalModule } from './vendor-portal/vendor-portal.module'
+import { VendorInterestsModule } from './vendor-interests/vendor-interests.module'
+import { PaymentsModule } from './payments/payments.module'
+import { ReviewsModule } from './reviews/reviews.module'
 
 @Module({
   imports: [
@@ -26,6 +30,10 @@ import { AnalyticsModule } from './analytics/analytics.module'
     EmailModule,
     GiftsModule,
     AnalyticsModule,
+    VendorPortalModule,
+    VendorInterestsModule,
+    PaymentsModule,
+    ReviewsModule,
   ],
 })
 export class AppModule {}

@@ -20,11 +20,13 @@ export class VendorsController {
     @Query('category') categorySlug?: string,
     @Query('city') city?: string,
     @Query('budgetMax') budgetMax?: string,
+    @Query('minCapacity') minCapacity?: string,
   ) {
     return this.vendors.getVendors({
       categorySlug,
       city,
       budgetMax: budgetMax ? parseInt(budgetMax) : undefined,
+      minCapacity: minCapacity ? parseInt(minCapacity) : undefined,
     })
   }
 
@@ -59,5 +61,13 @@ export class AdminVendorsController {
   @Patch(':id')
   updateVendor(@Param('id') id: string, @Body() dto: UpdateVendorDto) {
     return this.vendors.adminUpdateVendor(id, dto)
+  }
+
+  @Post(':id/create-account')
+  createVendorUser(
+    @Param('id') id: string,
+    @Body() body: { email: string; password: string },
+  ) {
+    return this.vendors.adminCreateVendorUser(id, body.email, body.password)
   }
 }

@@ -12,6 +12,8 @@ export class CreateVendorDto {
   instagram?: string
   website?: string
   photos?: string[]
+  videos?: string[]
+  capacity?: number
   isFeatured?: boolean
 }
 
@@ -29,6 +31,8 @@ export class UpdateVendorDto {
   instagram?: string
   website?: string
   photos?: string[]
+  videos?: string[]
+  capacity?: number
   isFeatured?: boolean
   isActive?: boolean
 }
