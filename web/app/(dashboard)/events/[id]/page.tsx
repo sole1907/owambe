@@ -193,7 +193,7 @@ export default function EventPage() {
         <ChecklistSection
           eventId={event.id}
           initialItems={event.checklist_items}
-          onFindVendors={handleFindVendors}
+          onFindVendors={() => setActiveTab('vendors')}
         />
       )}
       {activeTab === 'budget' && event.event_plans && (
