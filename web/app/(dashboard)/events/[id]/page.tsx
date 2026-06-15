@@ -52,15 +52,9 @@ export default function EventPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'checklist' | 'budget' | 'vendors' | 'guests' | 'gifts'>('checklist')
   const [pendingRequestCount, setPendingRequestCount] = useState(0)
-  const [vendorCategory, setVendorCategory] = useState('')
   const [editOpen, setEditOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
-
-  const handleFindVendors = (categorySlug: string) => {
-    setVendorCategory(categorySlug)
-    setActiveTab('vendors')
-  }
 
   const handleSaveEvent = async (fields: Parameters<typeof api.patch>[1]) => {
     if (!event || !token) return

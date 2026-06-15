@@ -17,7 +17,7 @@ type VendorProfile = {
 }
 
 export default function VendorDashboardPage() {
-  const { user, token } = useAuth()
+  const { token } = useAuth()
   const [profile, setProfile] = useState<VendorProfile | null>(null)
 
   useEffect(() => {

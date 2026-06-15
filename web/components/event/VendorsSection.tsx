@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useAuth } from '@/context/auth'
 import { api } from '@/lib/api'
 
@@ -176,7 +177,7 @@ function ShortlistCard({
           </div>
           <p className="text-xs text-gray-400 mt-0.5">{vendor.city}</p>
           {interest.vendor_notes && (
-            <p className="text-xs text-gray-600 mt-1 italic">"{interest.vendor_notes}"</p>
+            <p className="text-xs text-gray-600 mt-1 italic">&ldquo;{interest.vendor_notes}&rdquo;</p>
           )}
         </div>
 
@@ -512,11 +513,14 @@ export default function VendorsSection({
                   }`}
                 >
                   {vendor.photos?.[0] ? (
-                    <img
-                      src={vendor.photos[0]}
-                      alt={vendor.name}
-                      className="w-full h-28 object-cover rounded-xl mb-3"
-                    />
+                    <div className="relative w-full h-28 rounded-xl overflow-hidden mb-3">
+                      <Image
+                        src={vendor.photos[0]}
+                        alt={vendor.name}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
                   ) : (
                     <div className="w-full h-28 bg-gray-100 rounded-xl mb-3 flex items-center justify-center">
                       <span className="text-gray-300 text-xs">No photo</span>

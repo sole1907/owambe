@@ -286,7 +286,7 @@ function InquiryCard({
       </div>
 
       {inquiry.vendor_notes && (
-        <p className="text-xs text-gray-600 italic mb-3">Your note: "{inquiry.vendor_notes}"</p>
+        <p className="text-xs text-gray-600 italic mb-3">Your note: &ldquo;{inquiry.vendor_notes}&rdquo;</p>
       )}
 
       <div className="flex items-center justify-between">
