@@ -16,6 +16,7 @@ type Inquiry = {
   offered_price: number | null
   counter_price: number | null
   agreed_price: number | null
+  is_final_offer: boolean
   events: {
     id: string
     title: string
@@ -30,8 +31,14 @@ type Inquiry = {
 }
 
 function formatNaira(value: number) {
-  if (value >= 1000000) return `₦${(value / 1000000).toFixed(1)}M`
-  if (value >= 1000) return `₦${(value / 1000).toFixed(0)}k`
+  if (value >= 1_000_000) {
+    const str = (value / 1_000_000).toFixed(2).replace(/\.?0+$/, '')
+    return `₦${str}M`
+  }
+  if (value >= 1_000) {
+    const str = (value / 1_000).toFixed(1).replace(/\.?0+$/, '')
+    return `₦${str}k`
+  }
   return `₦${value.toLocaleString()}`
 }
 
@@ -61,11 +68,12 @@ function RespondModal({
   onClose,
 }: {
   inquiry: Inquiry
-  onRespond: (id: string, available: boolean, notes: string, counterPrice?: number) => Promise<void>
+  onRespond: (id: string, available: boolean, notes: string, counterPrice?: number, isFinalOffer?: boolean) => Promise<void>
   onClose: () => void
 }) {
   const [available, setAvailable] = useState<boolean | null>(null)
   const [counterPrice, setCounterPrice] = useState('')
+  const [isFinalCounter, setIsFinalCounter] = useState(false)
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -76,7 +84,7 @@ function RespondModal({
     setError('')
     try {
       const parsed = counterPrice ? parseInt(counterPrice.replace(/[^0-9]/g, ''), 10) : undefined
-      await onRespond(inquiry.id, available, notes, parsed || undefined)
+      await onRespond(inquiry.id, available, notes, parsed || undefined, isFinalCounter || undefined)
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not submit response.')
@@ -95,16 +103,22 @@ function RespondModal({
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="font-semibold text-gray-900 mb-1">Respond to inquiry</h3>
-        <p className="text-sm text-gray-500 mb-4">
+        <p className="text-sm text-gray-500 mb-1">
           {inquiry.events?.title}{inquiry.event_date ? ` · ${new Date(inquiry.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}
+        </p>
+        <p className="text-xs text-gray-400 mb-4">
+          Accept the offered price, suggest a counter, or decline. The organiser can accept or counter back — you can keep negotiating until you agree.
         </p>
 
         {/* Show offered price to vendor */}
         {inquiry.offered_price && (
-          <div className="mb-4 bg-green-50 border border-green-200 rounded-xl px-3 py-2.5">
-            <p className="text-xs text-green-800">
+          <div className={`mb-4 rounded-xl px-3 py-2.5 border ${inquiry.is_final_offer ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+            <p className={`text-xs ${inquiry.is_final_offer ? 'text-red-800' : 'text-green-800'}`}>
               Organiser&apos;s offer: <strong>{formatNaira(inquiry.offered_price)}</strong>
               {inquiry.events?.guest_count_estimate ? ` · ~${inquiry.events.guest_count_estimate.toLocaleString()} guests` : ''}
+              {inquiry.is_final_offer && (
+                <span className="ml-2 font-semibold">— Final offer, no counter allowed</span>
+              )}
             </p>
           </div>
         )}
@@ -144,11 +158,33 @@ function RespondModal({
               value={counterPrice}
               onChange={(e) => setCounterPrice(e.target.value)}
               placeholder={inquiry.offered_price ? `Offered: ${inquiry.offered_price.toLocaleString()}` : 'Your price'}
-              className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+              disabled={inquiry.is_final_offer}
+              className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black disabled:bg-gray-50 disabled:text-gray-400"
             />
-            <p className="text-xs text-gray-400 mt-1">
-              If you enter a different price, the organiser will be asked to accept your counter-offer.
-            </p>
+            {inquiry.is_final_offer ? (
+              <p className="text-xs text-red-600 mt-1">
+                This is a final offer — you can accept or decline, but cannot counter.
+              </p>
+            ) : (
+              <>
+                <p className="text-xs text-gray-400 mt-1">
+                  If you enter a different price, the organiser will be asked to accept your counter-offer.
+                </p>
+                {counterPrice && (
+                  <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isFinalCounter}
+                      onChange={(e) => setIsFinalCounter(e.target.checked)}
+                      className="rounded text-black"
+                    />
+                    <span className="text-xs text-gray-600">
+                      Mark as final counter (organiser can only accept or decline)
+                    </span>
+                  </label>
+                )}
+              </>
+            )}
           </div>
         )}
 
@@ -201,11 +237,11 @@ export default function VendorInquiriesPage() {
       .finally(() => setLoading(false))
   }, [token])
 
-  const handleRespond = async (id: string, available: boolean, notes: string, counterPrice?: number) => {
+  const handleRespond = async (id: string, available: boolean, notes: string, counterPrice?: number, isFinalOffer?: boolean) => {
     if (!token) return
     await api.patch(
       `/vendor-portal/inquiries/${id}`,
-      { available, notes: notes || undefined, counterPrice: counterPrice || undefined },
+      { available, notes: notes || undefined, counterPrice: counterPrice || undefined, isFinalOffer: isFinalOffer || undefined },
       token,
     )
     setInquiries((prev) =>
@@ -223,8 +259,10 @@ export default function VendorInquiriesPage() {
     )
   }
 
+  // pending = needs vendor response (includes user counter-backs)
+  // monitoring = vendor has responded, waiting on organiser or finalised
   const pending = inquiries.filter((i) => i.status === 'pending')
-  const responded = inquiries.filter((i) => i.status !== 'pending')
+  const monitoring = inquiries.filter((i) => i.status !== 'pending')
 
   return (
     <div>
@@ -258,11 +296,11 @@ export default function VendorInquiriesPage() {
             </section>
           )}
 
-          {responded.length > 0 && (
+          {monitoring.length > 0 && (
             <section>
-              <h2 className="text-sm font-semibold text-gray-500 mb-3">Past responses</h2>
+              <h2 className="text-sm font-semibold text-gray-500 mb-3">Active &amp; past</h2>
               <div className="space-y-3">
-                {responded.map((inquiry) => (
+                {monitoring.map((inquiry) => (
                   <InquiryCard key={inquiry.id} inquiry={inquiry} />
                 ))}
               </div>
@@ -332,12 +370,24 @@ function InquiryCard({
           From: {inquiry.users?.full_name || 'Organiser'} ({inquiry.users?.email})
           {inquiry.users?.phone && ` · ${inquiry.users.phone}`}
         </p>
-        {inquiry.offered_price && (
-          <p className="mt-1 text-green-700 font-medium">
-            Offer: {formatNaira(inquiry.offered_price)}
-            {inquiry.counter_price && ` · Your counter: ${formatNaira(inquiry.counter_price)}`}
-            {inquiry.agreed_price && ` · Agreed: ${formatNaira(inquiry.agreed_price)} ✓`}
-          </p>
+        {(inquiry.offered_price || inquiry.agreed_price) && (
+          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+            {inquiry.offered_price && (
+              <span className="text-green-700 font-medium">
+                Their offer: {formatNaira(inquiry.offered_price)}
+              </span>
+            )}
+            {inquiry.counter_price && (
+              <span className="text-purple-700 font-medium">
+                Your counter: {formatNaira(inquiry.counter_price)}
+              </span>
+            )}
+            {inquiry.agreed_price && (
+              <span className="text-blue-700 font-medium">
+                Agreed: {formatNaira(inquiry.agreed_price)} ✓
+              </span>
+            )}
+          </div>
         )}
       </div>
 

@@ -51,9 +51,15 @@ const BUDGET_CATEGORY_TO_SLUG: Record<string, string> = {
 }
 
 function fmt(v: number) {
-  if (v >= 1000000) return `₦${(v / 1000000).toFixed(1)}M`
-  if (v >= 1000) return `₦${(v / 1000).toFixed(0)}k`
-  return `₦${v}`
+  if (v >= 1_000_000) {
+    const str = (v / 1_000_000).toFixed(2).replace(/\.?0+$/, '')
+    return `₦${str}M`
+  }
+  if (v >= 1_000) {
+    const str = (v / 1_000).toFixed(1).replace(/\.?0+$/, '')
+    return `₦${str}k`
+  }
+  return `₦${v.toLocaleString()}`
 }
 
 type Props = {

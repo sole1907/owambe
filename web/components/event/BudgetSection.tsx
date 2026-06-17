@@ -36,8 +36,14 @@ type Props = {
 }
 
 function fmt(value: number) {
-  if (value >= 1000000) return `₦${(value / 1000000).toFixed(1)}M`
-  if (value >= 1000) return `₦${(value / 1000).toFixed(0)}k`
+  if (value >= 1_000_000) {
+    const str = (value / 1_000_000).toFixed(2).replace(/\.?0+$/, '')
+    return `₦${str}M`
+  }
+  if (value >= 1_000) {
+    const str = (value / 1_000).toFixed(1).replace(/\.?0+$/, '')
+    return `₦${str}k`
+  }
   return `₦${value.toLocaleString()}`
 }
 

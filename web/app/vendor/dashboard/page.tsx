@@ -8,7 +8,6 @@ import { api } from '@/lib/api'
 type VendorProfile = {
   name: string
   commitment_fee_percentage: number
-  service_fee: number | null
   has_material_costs: boolean
   rating: number
   review_count: number
@@ -19,13 +18,18 @@ type VendorProfile = {
 export default function VendorDashboardPage() {
   const { token } = useAuth()
   const [profile, setProfile] = useState<VendorProfile | null>(null)
+  const [pendingCount, setPendingCount] = useState(0)
 
   useEffect(() => {
     if (!token) return
-    api.get<VendorProfile>('/vendor-portal/profile', token).then(setProfile).catch(() => null)
+    Promise.all([
+      api.get<VendorProfile>('/vendor-portal/profile', token).catch(() => null),
+      api.get<{ pending: number }>('/vendor-portal/inquiry-counts', token).catch(() => ({ pending: 0 })),
+    ]).then(([p, counts]) => {
+      setProfile(p)
+      setPendingCount(counts?.pending ?? 0)
+    })
   }, [token])
-
-  const incomplete = profile && (!profile.service_fee)
 
   return (
     <div>
@@ -34,10 +38,20 @@ export default function VendorDashboardPage() {
       </h1>
       <p className="text-gray-500 text-sm mb-8">Manage your profile and availability from here.</p>
 
-      {incomplete && (
-        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-          <span className="font-medium">Your profile is incomplete.</span> Please set your service fee and other pricing details so clients can book you.{' '}
-          <Link href="/vendor/profile" className="underline font-medium">Complete profile →</Link>
+      {pendingCount > 0 && (
+        <div className="mb-6 p-4 bg-black text-white rounded-xl flex items-center justify-between gap-4">
+          <div>
+            <p className="font-semibold text-sm">
+              {pendingCount} pending {pendingCount === 1 ? 'inquiry' : 'inquiries'} awaiting your response
+            </p>
+            <p className="text-xs text-gray-300 mt-0.5">Respond within 48 hours to avoid expiry</p>
+          </div>
+          <Link
+            href="/vendor/inquiries"
+            className="shrink-0 bg-white text-black text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-100 transition"
+          >
+            View inquiries →
+          </Link>
         </div>
       )}
 

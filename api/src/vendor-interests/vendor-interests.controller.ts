@@ -23,6 +23,11 @@ export class VendorInterestsController {
 
   // ─── Event organiser endpoints ──────────────────────────────────────────────
 
+  @Get('vendor-interests/action-summary')
+  getActionSummary(@CurrentUser() user: any) {
+    return this.service.getActionSummary(user.id)
+  }
+
   @Get('events/:eventId/vendor-interests')
   getInterests(@Param('eventId') eventId: string, @CurrentUser() user: any) {
     return this.service.getInterests(eventId, user.id)
@@ -35,6 +40,16 @@ export class VendorInterestsController {
     @CurrentUser() user: any,
   ) {
     return this.service.addInterest(eventId, user.id, dto)
+  }
+
+  @Post('events/:eventId/vendor-interests/:interestId/counter-back')
+  counterBack(
+    @Param('eventId') eventId: string,
+    @Param('interestId') interestId: string,
+    @Body() body: { offeredPrice: number; isFinalOffer?: boolean },
+    @CurrentUser() user: any,
+  ) {
+    return this.service.counterBack(eventId, interestId, user.id, body.offeredPrice, body.isFinalOffer)
   }
 
   @Post('events/:eventId/vendor-interests/:interestId/accept-counter')
@@ -56,6 +71,13 @@ export class VendorInterestsController {
   }
 
   // ─── Vendor portal endpoints ────────────────────────────────────────────────
+
+  @Get('vendor-portal/inquiry-counts')
+  @UseGuards(RolesGuard)
+  @Roles('vendor')
+  getInquiryCounts(@CurrentUser() user: any) {
+    return this.service.getInquiryCounts(user.id)
+  }
 
   @Get('vendor-portal/inquiries')
   @UseGuards(RolesGuard)

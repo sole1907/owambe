@@ -33,7 +33,7 @@ export class VendorInterestsService {
       .select(`
         id, preference_rank, status, event_date, expires_at,
         vendor_response_at, vendor_notes, created_at,
-        offered_price, counter_price, agreed_price,
+        offered_price, counter_price, agreed_price, is_final_offer,
         vendors (id, name, slug, city, price_min, price_max, rating, photos,
           commitment_fee_percentage,
           vendor_categories (id, name, slug))
@@ -135,6 +135,7 @@ export class VendorInterestsService {
         event_date: eventDate,
         expires_at: expiresAt.toISOString(),
         offered_price: dto.offeredPrice ?? null,
+        is_final_offer: dto.isFinalOffer ?? false,
       })
       .select()
       .single()
@@ -182,6 +183,76 @@ export class VendorInterestsService {
     return { message: 'Removed from shortlist' }
   }
 
+  // Summary of interests needing action across all of a user's events
+  async getActionSummary(userId: string) {
+    const client = this.supabase.getAdminClient()
+
+    const { data } = await client
+      .from('vendor_interests')
+      .select('status')
+      .eq('user_id', userId)
+      .in('status', ['pending', 'quoted'])
+
+    const pending_vendor_response = (data ?? []).filter((i) => i.status === 'pending').length
+    const counter_received = (data ?? []).filter((i) => i.status === 'quoted').length
+
+    return { pending_vendor_response, counter_received }
+  }
+
+  // User counters back after receiving a vendor counter-offer
+  async counterBack(eventId: string, interestId: string, userId: string, offeredPrice: number, isFinalOffer?: boolean) {
+    const client = this.supabase.getAdminClient()
+
+    const { data: interest, error } = await client
+      .from('vendor_interests')
+      .select('id, status, vendor_id, offered_price, counter_price, is_final_offer, events(title, city, event_date), vendors(name, email)')
+      .eq('id', interestId)
+      .eq('event_id', eventId)
+      .eq('user_id', userId)
+      .single()
+
+    if (error || !interest) throw new NotFoundException('Interest not found')
+    if (interest.status !== 'quoted') throw new BadRequestException('No counter-offer to respond to.')
+
+    // If the vendor marked their counter as final, user cannot counter — only accept or decline
+    if ((interest as any).is_final_offer) {
+      throw new BadRequestException(
+        'The vendor marked their counter-offer as final. You can only accept or decline.',
+      )
+    }
+
+    const { data, error: updateError } = await client
+      .from('vendor_interests')
+      .update({
+        offered_price: offeredPrice,
+        counter_price: null,
+        status: 'pending',
+        is_final_offer: isFinalOffer ?? false,
+      })
+      .eq('id', interestId)
+      .select()
+      .single()
+
+    if (updateError) throw new InternalServerErrorException(updateError.message)
+
+    // Notify vendor of the counter-back
+    const vendorEmail = (interest.vendors as any)?.email
+    if (vendorEmail) {
+      const fmt = (v: number) => new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(v)
+      await this.email.sendVendorInquiry({
+        to: vendorEmail,
+        vendorName: (interest.vendors as any)?.name ?? 'Vendor',
+        eventTitle: (interest.events as any)?.title ?? 'Event',
+        eventDate: (interest.events as any)?.event_date ?? 'Date TBC',
+        eventCity: (interest.events as any)?.city ?? '',
+        expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+        offeredPrice: fmt(offeredPrice),
+      })
+    }
+
+    return data
+  }
+
   // Accept vendor's counter-offer (user-side)
   async acceptCounter(eventId: string, interestId: string, userId: string) {
     const client = this.supabase.getAdminClient()
@@ -211,6 +282,26 @@ export class VendorInterestsService {
 
   // ─── Vendor portal ──────────────────────────────────────────────────────────
 
+  async getInquiryCounts(vendorUserId: string) {
+    const client = this.supabase.getAdminClient()
+
+    const { data: vendor } = await client
+      .from('vendors')
+      .select('id')
+      .eq('user_id', vendorUserId)
+      .single()
+
+    if (!vendor) return { pending: 0 }
+
+    const { data } = await client
+      .from('vendor_interests')
+      .select('status')
+      .eq('vendor_id', vendor.id)
+      .eq('status', 'pending')
+
+    return { pending: (data ?? []).length }
+  }
+
   async getInquiries(vendorUserId: string) {
     const client = this.supabase.getAdminClient()
 
@@ -227,7 +318,7 @@ export class VendorInterestsService {
       .select(`
         id, preference_rank, status, event_date, expires_at,
         vendor_response_at, vendor_notes, created_at,
-        offered_price, counter_price, agreed_price,
+        offered_price, counter_price, agreed_price, is_final_offer,
         events (id, title, city, guest_count_estimate),
         users (full_name, email, phone)
       `)
@@ -252,7 +343,7 @@ export class VendorInterestsService {
     const { data: interest, error: interestError } = await client
       .from('vendor_interests')
       .select(`
-        id, status, event_id, user_id, offered_price,
+        id, status, event_id, user_id, offered_price, is_final_offer,
         events (title, city, event_date),
         users (email, full_name)
       `)
@@ -264,6 +355,13 @@ export class VendorInterestsService {
 
     if (!['pending', 'quoted'].includes(interest.status)) {
       throw new BadRequestException('This inquiry has already been finalised or has expired.')
+    }
+
+    // If the organiser marked their offer as final, vendor cannot counter — only accept or decline
+    if ((interest as any).is_final_offer && dto.available && dto.counterPrice) {
+      throw new BadRequestException(
+        'This offer was marked as final by the organiser. You can only accept or decline.',
+      )
     }
 
     let newStatus: string
@@ -288,6 +386,8 @@ export class VendorInterestsService {
         vendor_notes: dto.notes ?? null,
         counter_price: dto.counterPrice ?? null,
         agreed_price: agreedPrice,
+        // Record if vendor's counter is final; clear flag if accepting/declining
+        is_final_offer: newStatus === 'quoted' ? (dto.isFinalOffer ?? false) : false,
       })
       .eq('id', interestId)
       .select()

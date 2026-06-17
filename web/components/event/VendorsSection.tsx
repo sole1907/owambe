@@ -34,6 +34,7 @@ type Interest = {
   offered_price: number | null
   counter_price: number | null
   agreed_price: number | null
+  is_final_offer: boolean
   vendors: Vendor & {
     vendor_categories: Category
     commitment_fee_percentage: number
@@ -41,9 +42,15 @@ type Interest = {
 }
 
 function formatNaira(value: number) {
-  if (value >= 1000000) return `₦${(value / 1000000).toFixed(1)}M`
-  if (value >= 1000) return `₦${(value / 1000).toFixed(0)}k`
-  return `₦${value}`
+  if (value >= 1_000_000) {
+    const str = (value / 1_000_000).toFixed(2).replace(/\.?0+$/, '')
+    return `₦${str}M`
+  }
+  if (value >= 1_000) {
+    const str = (value / 1_000).toFixed(1).replace(/\.?0+$/, '')
+    return `₦${str}k`
+  }
+  return `₦${value.toLocaleString()}`
 }
 
 const RANK_LABEL = ['A', 'B', 'C']
@@ -153,6 +160,143 @@ function VendorCard({
   )
 }
 
+function CounterNegotiationRow({
+  interest,
+  eventId,
+  onAccepted,
+  onCounterBack,
+}: {
+  interest: Interest
+  eventId: string
+  onAccepted: (id: string) => void
+  onCounterBack: (id: string) => void
+}) {
+  const { token } = useAuth()
+  const [mode, setMode] = useState<'idle' | 'countering'>('idle')
+  const [counterInput, setCounterInput] = useState('')
+  const [accepting, setAccepting] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleAccept = async () => {
+    if (!token) return
+    setAccepting(true)
+    setError('')
+    try {
+      await api.post(`/events/${eventId}/vendor-interests/${interest.id}/accept-counter`, {}, token)
+      onAccepted(interest.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed.')
+    } finally {
+      setAccepting(false)
+    }
+  }
+
+  const [isFinalOffer, setIsFinalOffer] = useState(false)
+
+  const handleCounterBack = async () => {
+    if (!token || !counterInput) return
+    const amount = parseInt(counterInput.replace(/[^0-9]/g, ''), 10)
+    if (!amount) return
+    setSubmitting(true)
+    setError('')
+    try {
+      await api.post(
+        `/events/${eventId}/vendor-interests/${interest.id}/counter-back`,
+        { offeredPrice: amount, isFinalOffer },
+        token,
+      )
+      onCounterBack(interest.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="mt-3 pl-10 bg-purple-50 rounded-lg p-3 border border-purple-200">
+      <div className="flex items-center gap-2 mb-0.5">
+        <p className="text-xs text-purple-900 font-medium">
+          Vendor countered at <strong>{formatNaira(interest.counter_price!)}</strong>
+        </p>
+        {interest.is_final_offer && (
+          <span className="text-xs bg-red-100 text-red-700 font-medium px-1.5 py-0.5 rounded">
+            Final offer
+          </span>
+        )}
+      </div>
+      {interest.offered_price && (
+        <p className="text-xs text-purple-600 mb-2">You offered {formatNaira(interest.offered_price)}</p>
+      )}
+      {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+
+      {mode === 'idle' ? (
+        <div className="flex gap-2">
+          <button
+            onClick={handleAccept}
+            disabled={accepting}
+            className="text-xs bg-purple-700 text-white px-3 py-1.5 rounded-lg hover:bg-purple-800 disabled:opacity-50 transition font-medium"
+          >
+            {accepting ? '...' : `Accept ${formatNaira(interest.counter_price!)}`}
+          </button>
+          {!interest.is_final_offer && (
+            <button
+              onClick={() => setMode('countering')}
+              className="text-xs border border-purple-300 text-purple-700 px-3 py-1.5 rounded-lg hover:bg-purple-100 transition font-medium"
+            >
+              Counter back
+            </button>
+          )}
+          {interest.is_final_offer && (
+            <span className="text-xs text-red-600 self-center">
+              Accept or decline — no counter allowed
+            </span>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex gap-2 items-center">
+            <input
+              autoFocus
+              type="number"
+              min={0}
+              placeholder="Your counter (₦)"
+              value={counterInput}
+              onChange={(e) => setCounterInput(e.target.value)}
+              className="flex-1 text-xs border border-purple-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-500"
+            />
+            <button
+              onClick={handleCounterBack}
+              disabled={submitting || !counterInput}
+              className="text-xs bg-purple-700 text-white px-3 py-1.5 rounded-lg hover:bg-purple-800 disabled:opacity-50 transition font-medium"
+            >
+              {submitting ? '...' : 'Send'}
+            </button>
+            <button
+              onClick={() => setMode('idle')}
+              className="text-xs text-purple-500 hover:text-purple-700"
+            >
+              Cancel
+            </button>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isFinalOffer}
+              onChange={(e) => setIsFinalOffer(e.target.checked)}
+              className="rounded text-purple-600"
+            />
+            <span className="text-xs text-purple-700">
+              Mark as final offer (vendor can only accept or decline)
+            </span>
+          </label>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ShortlistCard({
   interest,
   eventId,
@@ -169,8 +313,6 @@ function ShortlistCard({
   const rank = RANK_LABEL[interest.preference_rank - 1]
   const [paying, setPaying] = useState(false)
   const [payError, setPayError] = useState('')
-  const [accepting, setAccepting] = useState(false)
-  const [acceptError, setAcceptError] = useState('')
 
   if (!vendor) return null
 
@@ -179,24 +321,6 @@ function ShortlistCard({
   const commitmentFee = priceBasis && vendor.commitment_fee_percentage
     ? Math.round((priceBasis * vendor.commitment_fee_percentage) / 100)
     : null
-
-  const handleAcceptCounter = async () => {
-    if (!token) return
-    setAccepting(true)
-    setAcceptError('')
-    try {
-      await api.post(
-        `/events/${eventId}/vendor-interests/${interest.id}/accept-counter`,
-        {},
-        token,
-      )
-      onCommitted(interest.id)
-    } catch (err) {
-      setAcceptError(err instanceof Error ? err.message : 'Failed to accept counter.')
-    } finally {
-      setAccepting(false)
-    }
-  }
 
   const handlePay = async () => {
     if (!token) return
@@ -318,22 +442,14 @@ function ShortlistCard({
         )}
       </div>
 
-      {/* Counter-offer: vendor countered, user can accept */}
+      {/* Counter-offer: vendor countered, user can accept or counter back */}
       {interest.status === 'quoted' && interest.counter_price && (
-        <div className="mt-3 pl-10 bg-purple-50 rounded-lg p-3 border border-purple-200">
-          <p className="text-xs text-purple-800 mb-2">
-            Vendor countered at <strong>{formatNaira(interest.counter_price)}</strong>
-            {interest.offered_price && ` (you offered ${formatNaira(interest.offered_price)})`}
-          </p>
-          {acceptError && <p className="text-xs text-red-600 mb-2">{acceptError}</p>}
-          <button
-            onClick={handleAcceptCounter}
-            disabled={accepting}
-            className="text-xs bg-purple-700 text-white px-4 py-2 rounded-lg hover:bg-purple-800 disabled:opacity-50 transition font-medium"
-          >
-            {accepting ? 'Accepting...' : `Accept ${formatNaira(interest.counter_price)} →`}
-          </button>
-        </div>
+        <CounterNegotiationRow
+          interest={interest}
+          eventId={eventId}
+          onAccepted={onCommitted}
+          onCounterBack={onCommitted}
+        />
       )}
 
       {interest.status === 'available' && (
@@ -397,6 +513,7 @@ function AddInterestModal({
   const [rank, setRank] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [isFinalOffer, setIsFinalOffer] = useState(false)
 
   const suggestedOffer = computeSuggestedOffer(vendor.price_min, vendor.price_max, categoryBudget)
   const [offerAmount, setOfferAmount] = useState<string>(suggestedOffer ? String(suggestedOffer) : '')
@@ -415,7 +532,12 @@ function AddInterestModal({
       const parsedOffer = offerAmount ? parseInt(offerAmount.replace(/[^0-9]/g, ''), 10) : undefined
       await api.post<Interest>(
         `/events/${eventId}/vendor-interests`,
-        { vendorId: vendor.id, preferenceRank: rank, offeredPrice: parsedOffer || undefined },
+        {
+          vendorId: vendor.id,
+          preferenceRank: rank,
+          offeredPrice: parsedOffer || undefined,
+          isFinalOffer: isFinalOffer || undefined,
+        },
         token,
       )
       onAdd()
@@ -468,6 +590,17 @@ function AddInterestModal({
               Enter your opening offer. The vendor can accept or counter with a different price.
             </p>
           )}
+          <label className="flex items-center gap-2 mt-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isFinalOffer}
+              onChange={(e) => setIsFinalOffer(e.target.checked)}
+              className="rounded text-black"
+            />
+            <span className="text-xs text-gray-600">
+              Mark as final offer (vendor can only accept or decline, no counter)
+            </span>
+          </label>
         </div>
 
         <p className="text-xs font-medium text-gray-600 mb-2">Choose preference slot</p>

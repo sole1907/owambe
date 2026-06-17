@@ -21,6 +21,11 @@ type ReviewableInterest = {
   events: { title: string }
 }
 
+type ActionSummary = {
+  pending_vendor_response: number
+  counter_received: number
+}
+
 const EVENT_TYPE_LABELS: Record<string, string> = {
   wedding: 'Wedding',
   birthday: 'Birthday',
@@ -34,6 +39,7 @@ export default function DashboardPage() {
   const { user, token } = useAuth()
   const [events, setEvents] = useState<EventSummary[]>([])
   const [reviewable, setReviewable] = useState<ReviewableInterest[]>([])
+  const [actionSummary, setActionSummary] = useState<ActionSummary | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -41,9 +47,11 @@ export default function DashboardPage() {
     Promise.all([
       api.get<EventSummary[]>('/events', token),
       api.get<ReviewableInterest[]>('/reviews/reviewable', token).catch(() => []),
-    ]).then(([e, r]) => {
+      api.get<ActionSummary>('/vendor-interests/action-summary', token).catch(() => null),
+    ]).then(([e, r, a]) => {
       setEvents(e)
       setReviewable(r)
+      setActionSummary(a)
     }).finally(() => setLoading(false))
   }, [token])
 
@@ -63,6 +71,19 @@ export default function DashboardPage() {
           + New event
         </Link>
       </div>
+
+      {/* Counter-offers awaiting response */}
+      {actionSummary && actionSummary.counter_received > 0 && (
+        <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-xl flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-purple-900">
+              {actionSummary.counter_received} vendor {actionSummary.counter_received === 1 ? 'counter-offer' : 'counter-offers'} awaiting your response
+            </p>
+            <p className="text-xs text-purple-600 mt-0.5">Open the relevant event to accept or counter back</p>
+          </div>
+          <span className="text-2xl">💬</span>
+        </div>
+      )}
 
       {/* Pending reviews banner */}
       {reviewable.length > 0 && (
