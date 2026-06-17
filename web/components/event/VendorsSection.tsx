@@ -15,10 +15,12 @@ type Vendor = {
   city: string
   price_min: number | null
   price_max: number | null
+  service_fee: number | null
   rating: number
   review_count: number
   photos: string[]
   capacity: number | null
+  is_within_budget: boolean
   vendor_categories: Category
 }
 
@@ -69,6 +71,83 @@ declare global {
       }
     }
   }
+}
+
+function VendorCard({
+  vendor,
+  alreadyShortlisted,
+  slotsUsed,
+  onShortlist,
+}: {
+  vendor: Vendor
+  alreadyShortlisted: boolean
+  slotsUsed: number
+  onShortlist: () => void
+}) {
+  const allSlotsFull = slotsUsed >= 3
+  return (
+    <div
+      className={`bg-white border rounded-2xl overflow-hidden transition ${
+        alreadyShortlisted ? 'border-black/20 bg-gray-50' : 'border-gray-200 hover:border-gray-300'
+      }`}
+    >
+      {vendor.photos?.[0] ? (
+        <div className="relative w-full h-28">
+          <Image src={vendor.photos[0]} alt={vendor.name} fill className="object-cover" />
+        </div>
+      ) : (
+        <div className="w-full h-28 bg-gray-100 flex items-center justify-center">
+          <span className="text-gray-300 text-xs">No photo</span>
+        </div>
+      )}
+
+      <div className="p-3">
+        <div className="flex items-start justify-between mb-0.5 gap-2">
+          <Link
+            href={`/vendors/${vendor.slug}`}
+            className="font-semibold text-gray-900 text-sm hover:underline leading-tight"
+          >
+            {vendor.name}
+          </Link>
+          <span className="text-xs text-gray-400 shrink-0">★ {vendor.rating}</span>
+        </div>
+
+        <p className="text-xs text-gray-500 mb-1">{vendor.vendor_categories?.name} · {vendor.city}</p>
+
+        {vendor.capacity && (
+          <span className="inline-block text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5 font-medium mb-1">
+            Up to {vendor.capacity.toLocaleString()} guests
+          </span>
+        )}
+
+        <p className="text-xs text-gray-500 line-clamp-2 mb-3">{vendor.description}</p>
+
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-gray-800">
+            {vendor.service_fee
+              ? formatNaira(vendor.service_fee)
+              : vendor.price_min && vendor.price_max
+              ? `${formatNaira(vendor.price_min)} – ${formatNaira(vendor.price_max)}`
+              : 'Price on request'}
+          </span>
+          {alreadyShortlisted ? (
+            <span className="text-xs text-black font-medium px-3 py-1.5 bg-gray-100 rounded-lg">
+              Shortlisted ✓
+            </span>
+          ) : allSlotsFull ? (
+            <span className="text-xs text-gray-400 px-3 py-1.5">Slots full</span>
+          ) : (
+            <button
+              onClick={onShortlist}
+              className="text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 transition"
+            >
+              + Shortlist
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function ShortlistCard({
@@ -403,6 +482,9 @@ export default function VendorsSection({
     ? vendors.filter((v) => v.vendor_categories?.slug === activeCategory)
     : vendors
 
+  const withinBudget = filteredVendors.filter((v) => v.is_within_budget)
+  const aboveBudget = filteredVendors.filter((v) => !v.is_within_budget)
+
   return (
     <div className="space-y-8">
       {/* ── Shortlist ──────────────────────────────────────────────────────── */}
@@ -497,84 +579,42 @@ export default function VendorsSection({
             </Link>
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {filteredVendors.map((vendor) => {
-              const alreadyShortlisted = shortlistedVendorIds.has(vendor.id)
-              const slotsUsed = interests.filter(
-                (i) => i.vendors?.vendor_categories?.id === vendor.vendor_categories?.id,
-              ).length
-              const allSlotsFull = slotsUsed >= 3
-
-              return (
-                <div
+          <>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {withinBudget.map((vendor) => (
+                <VendorCard
                   key={vendor.id}
-                  className={`bg-white border rounded-2xl p-4 transition ${
-                    alreadyShortlisted ? 'border-black/20 bg-gray-50' : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  {vendor.photos?.[0] ? (
-                    <div className="relative w-full h-28 rounded-xl overflow-hidden mb-3">
-                      <Image
-                        src={vendor.photos[0]}
-                        alt={vendor.name}
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-full h-28 bg-gray-100 rounded-xl mb-3 flex items-center justify-center">
-                      <span className="text-gray-300 text-xs">No photo</span>
-                    </div>
-                  )}
+                  vendor={vendor}
+                  alreadyShortlisted={shortlistedVendorIds.has(vendor.id)}
+                  slotsUsed={interests.filter((i) => i.vendors?.vendor_categories?.id === vendor.vendor_categories?.id).length}
+                  onShortlist={() => setAddingVendor(vendor)}
+                />
+              ))}
+            </div>
 
-                  <div className="flex items-start justify-between mb-1 gap-2">
-                    <Link
-                      href={`/vendors/${vendor.slug}`}
-                      className="font-semibold text-gray-900 text-sm hover:underline leading-tight"
-                    >
-                      {vendor.name}
-                    </Link>
-                    <span className="text-xs text-gray-400 shrink-0">★ {vendor.rating}</span>
-                  </div>
-
-                  <p className="text-xs text-gray-500 mb-1">
-                    {vendor.vendor_categories?.name} · {vendor.city}
+            {aboveBudget.length > 0 && (
+              <>
+                <div className="flex items-center gap-3 my-5">
+                  <div className="flex-1 border-t border-gray-200" />
+                  <p className="text-xs text-gray-400 whitespace-nowrap">
+                    {withinBudget.length > 0 ? 'Also available · above your estimated budget' : 'Available · above your estimated budget'} · sorted by price
                   </p>
-
-                  {vendor.capacity && (
-                    <p className="text-xs text-blue-600 mb-1 font-medium">
-                      Capacity: {vendor.capacity.toLocaleString()} guests
-                    </p>
-                  )}
-
-                  <p className="text-xs text-gray-500 line-clamp-2 mb-3">{vendor.description}</p>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-gray-700">
-                      {vendor.price_min && vendor.price_max
-                        ? `${formatNaira(vendor.price_min)} – ${formatNaira(vendor.price_max)}`
-                        : 'Price on request'}
-                    </span>
-
-                    {alreadyShortlisted ? (
-                      <span className="text-xs text-black font-medium px-3 py-1.5 bg-gray-100 rounded-lg">
-                        Shortlisted ✓
-                      </span>
-                    ) : allSlotsFull ? (
-                      <span className="text-xs text-gray-400 px-3 py-1.5">Slots full</span>
-                    ) : (
-                      <button
-                        onClick={() => setAddingVendor(vendor)}
-                        className="text-xs bg-black text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 transition"
-                      >
-                        + Shortlist
-                      </button>
-                    )}
-                  </div>
+                  <div className="flex-1 border-t border-gray-200" />
                 </div>
-              )
-            })}
-          </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {aboveBudget.map((vendor) => (
+                    <VendorCard
+                      key={vendor.id}
+                      vendor={vendor}
+                      alreadyShortlisted={shortlistedVendorIds.has(vendor.id)}
+                      slotsUsed={interests.filter((i) => i.vendors?.vendor_categories?.id === vendor.vendor_categories?.id).length}
+                      onShortlist={() => setAddingVendor(vendor)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </>
         )}
       </div>
 

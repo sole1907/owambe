@@ -28,13 +28,42 @@ function getCTA(title: string) {
   return VENDOR_CTAS.find((c) => c.pattern.test(title)) ?? null
 }
 
+type BudgetItem = {
+  category: string
+  percentage: number
+  amount: number | null
+}
+
+// Maps budget category labels to vendor category slugs (mirrors backend constant)
+const BUDGET_CATEGORY_TO_SLUG: Record<string, string> = {
+  'Venue': 'venues',
+  'Catering': 'caterers',
+  'Decoration': 'decorators',
+  'Photography': 'photographers',
+  'Videography': 'videographers',
+  'Photography / Videography': 'photographers',
+  'DJ / Live Band': 'djs',
+  'DJ / Entertainment': 'djs',
+  'Entertainment': 'djs',
+  'MC': 'mcs',
+  'Makeup Artist': 'makeup-artists',
+  'Event Coordinator': 'event-coordinators',
+}
+
+function fmt(v: number) {
+  if (v >= 1000000) return `₦${(v / 1000000).toFixed(1)}M`
+  if (v >= 1000) return `₦${(v / 1000).toFixed(0)}k`
+  return `₦${v}`
+}
+
 type Props = {
   eventId: string
   initialItems: ChecklistItem[]
+  budgetBreakdown?: BudgetItem[]
   onFindVendors?: (categorySlug: string) => void
 }
 
-export default function ChecklistSection({ eventId, initialItems, onFindVendors }: Props) {
+export default function ChecklistSection({ eventId, initialItems, budgetBreakdown, onFindVendors }: Props) {
   const { token } = useAuth()
   const [items, setItems] = useState<ChecklistItem[]>(
     [...initialItems].sort((a, b) => a.sort_order - b.sort_order),
@@ -93,6 +122,23 @@ export default function ChecklistSection({ eventId, initialItems, onFindVendors 
           + Add item
         </button>
       </div>
+
+      {/* Budget guide */}
+      {budgetBreakdown && budgetBreakdown.some((b) => b.amount) && (
+        <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <p className="text-xs font-semibold text-amber-900 mb-2">Budget guide</p>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            {budgetBreakdown
+              .filter((b) => b.amount && BUDGET_CATEGORY_TO_SLUG[b.category])
+              .map((b) => (
+                <div key={b.category} className="flex items-center justify-between gap-1">
+                  <span className="text-xs text-amber-800 truncate">{b.category}</span>
+                  <span className="text-xs font-medium text-amber-900 shrink-0">{fmt(b.amount!)}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* Progress bar */}
       <div className="w-full bg-gray-100 rounded-full h-1.5 mb-5">

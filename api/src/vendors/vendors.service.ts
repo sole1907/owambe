@@ -1,4 +1,5 @@
 import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common'
+import { BUDGET_CATEGORY_TO_VENDOR_SLUG } from '../events/events.service'
 import { SupabaseService } from '../supabase/supabase.service'
 import { CreateVendorDto, UpdateVendorDto } from './dto/vendor.dto'
 import { PostHogService } from '../analytics/posthog.service'
@@ -95,17 +96,22 @@ export class VendorsService {
   async getRecommendedVendors(eventId: string, userId: string) {
     const client = this.supabase.getClient()
 
-    // Fetch event details
-    const { data: event, error: eventError } = await client
-      .from('events')
-      .select('city, budget_estimate, event_type, has_existing_vendors, guest_count')
-      .eq('id', eventId)
-      .eq('user_id', userId)
-      .single()
+    const [{ data: event, error: eventError }, { data: plan }] = await Promise.all([
+      client.from('events').select('city, guest_count, budget_estimate').eq('id', eventId).eq('user_id', userId).single(),
+      client.from('event_plans').select('budget_breakdown').eq('event_id', eventId).single(),
+    ])
 
     if (eventError || !event) throw new NotFoundException('Event not found')
 
-    // Get venue category id for capacity filtering
+    // Build per-vendor-category recommended budget map from the event's breakdown
+    const breakdown: { category: string; percentage: number; amount: number | null }[] =
+      (plan?.budget_breakdown as any[]) ?? []
+    const categoryBudgetMap: Record<string, number> = {}
+    for (const item of breakdown) {
+      const slug = BUDGET_CATEGORY_TO_VENDOR_SLUG[item.category]
+      if (slug && item.amount) categoryBudgetMap[slug] = item.amount
+    }
+
     const { data: venueCategory } = await client
       .from('vendor_categories')
       .select('id')
@@ -115,42 +121,58 @@ export class VendorsService {
     let query = client
       .from('vendors')
       .select(
-        `
-        id, name, slug, description, city, location,
-        price_min, price_max, rating, review_count, capacity,
+        `id, name, slug, description, city, location,
+        price_min, price_max, service_fee, rating, review_count, capacity,
         photos, videos, whatsapp, phone, instagram, is_featured,
-        vendor_categories (id, name, slug)
-      `,
+        vendor_categories (id, name, slug)`,
       )
       .eq('is_active', true)
       .order('is_featured', { ascending: false })
       .order('rating', { ascending: false })
-      .limit(20)
+      .limit(50)
 
-    // Filter by event city
     if (event.city) {
       query = query.ilike('city', `%${event.city}%`)
     }
 
-    // Filter by budget — vendor min price should not exceed ~35% of total budget
-    if (event.budget_estimate) {
-      const maxVendorPrice = Math.round(event.budget_estimate * 0.35)
-      query = query.lte('price_min', maxVendorPrice)
-    }
-
     const { data, error } = await query
-
     if (error) throw new InternalServerErrorException(error.message)
 
-    // Post-filter: exclude venues too small for the event guest count
-    const results = (data ?? []).filter((v: any) => {
+    // Exclude venues too small for guest count
+    const eligible = (data ?? []).filter((v: any) => {
       if (v.vendor_categories?.id === venueCategory?.id && v.capacity && event.guest_count) {
         return v.capacity >= event.guest_count
       }
       return true
     })
 
-    return results.slice(0, 12)
+    // Split by budget: use per-category allocation if available, else total budget
+    const withinBudget: any[] = []
+    const aboveBudget: any[] = []
+
+    for (const v of eligible) {
+      const categorySlug = (v.vendor_categories as any)?.slug
+      const categoryBudget = categorySlug ? (categoryBudgetMap[categorySlug] ?? null) : null
+      const fallbackBudget = event.budget_estimate ?? null
+      const effectiveBudget = categoryBudget ?? fallbackBudget
+      const vendorPrice = v.service_fee ?? v.price_min ?? null
+      const fits = !effectiveBudget || !vendorPrice || vendorPrice <= effectiveBudget
+      if (fits) {
+        withinBudget.push({ ...v, is_within_budget: true })
+      } else {
+        aboveBudget.push({ ...v, is_within_budget: false })
+      }
+    }
+
+    // Within budget: already sorted by featured + rating (from DB)
+    // Above budget: sorted cheapest first so user sees closest-to-budget options first
+    aboveBudget.sort((a, b) => {
+      const priceA = a.service_fee ?? a.price_min ?? Infinity
+      const priceB = b.service_fee ?? b.price_min ?? Infinity
+      return priceA - priceB
+    })
+
+    return [...withinBudget, ...aboveBudget]
   }
 
   private slugify(name: string): string {

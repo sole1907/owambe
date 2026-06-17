@@ -79,6 +79,11 @@ export class EventsController {
     return this.vendors.getRecommendedVendors(id, user.id)
   }
 
+  @Get(':id/budget-summary')
+  getBudgetSummary(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.events.getBudgetSummary(id, user.id)
+  }
+
   @Patch(':id/budget')
   updateBudgetBreakdown(
     @Param('id') id: string,

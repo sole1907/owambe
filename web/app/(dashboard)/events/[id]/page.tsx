@@ -194,6 +194,7 @@ export default function EventPage() {
         <ChecklistSection
           eventId={event.id}
           initialItems={event.checklist_items}
+          budgetBreakdown={event.event_plans?.budget_breakdown}
           onFindVendors={() => setActiveTab('vendors')}
         />
       )}

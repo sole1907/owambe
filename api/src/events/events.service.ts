@@ -1,4 +1,23 @@
-import { Injectable, InternalServerErrorException, BadRequestException } from '@nestjs/common'
+import { Injectable, InternalServerErrorException, BadRequestException, NotFoundException } from '@nestjs/common'
+
+// Maps AI-generated budget category labels → vendor category slugs
+export const BUDGET_CATEGORY_TO_VENDOR_SLUG: Record<string, string | null> = {
+  'Venue': 'venues',
+  'Catering': 'caterers',
+  'Decoration': 'decorators',
+  'Photography': 'photographers',
+  'Videography': 'videographers',
+  'Photography / Videography': 'photographers',
+  'DJ / Live Band': 'djs',
+  'DJ / Entertainment': 'djs',
+  'Entertainment': 'djs',
+  'MC': 'mcs',
+  'Makeup Artist': 'makeup-artists',
+  'Event Coordinator': 'event-coordinators',
+  'AV / Technical Equipment': null,
+  'Branding & Materials': null,
+  'Miscellaneous': null,
+}
 import { SupabaseService } from '../supabase/supabase.service'
 import { PlanGeneratorService } from './plan-generator/plan-generator.service'
 import { GeneratePlanDto } from './dto/generate-plan.dto'
@@ -264,5 +283,83 @@ export class EventsService {
 
     if (error) throw new InternalServerErrorException(error.message)
     return { success: true }
+  }
+
+  async getBudgetSummary(eventId: string, userId: string) {
+    const client = this.supabase.getClient()
+
+    const [{ data: event }, { data: plan }] = await Promise.all([
+      client.from('events').select('budget_estimate').eq('id', eventId).eq('user_id', userId).single(),
+      client.from('event_plans').select('budget_breakdown').eq('event_id', eventId).single(),
+    ])
+
+    if (!event) throw new NotFoundException('Event not found')
+
+    const totalBudget: number | null = event.budget_estimate ?? null
+    const breakdown: { category: string; percentage: number; amount: number | null }[] =
+      (plan?.budget_breakdown as any[]) ?? []
+
+    const [{ data: interests }, { data: payments }] = await Promise.all([
+      client
+        .from('vendor_interests')
+        .select('id, status, vendor_id, preference_rank, vendors(name, service_fee, price_min, vendor_categories(slug))')
+        .eq('event_id', eventId)
+        .in('status', ['pending', 'available', 'committed']),
+      client
+        .from('commitment_payments')
+        .select('vendor_id, amount_kobo')
+        .eq('event_id', eventId)
+        .eq('status', 'success'),
+    ])
+
+    const committedFeeByVendor: Record<string, number> = {}
+    for (const p of payments ?? []) {
+      committedFeeByVendor[p.vendor_id] = (committedFeeByVendor[p.vendor_id] ?? 0) + p.amount_kobo / 100
+    }
+
+    // Pick best interest per vendor category (committed > available > pending, then rank 1 > 2 > 3)
+    const STATUS_PRIORITY: Record<string, number> = { committed: 0, available: 1, pending: 2 }
+    const bestBySlug: Record<string, any> = {}
+    for (const interest of interests ?? []) {
+      const slug = (interest as any).vendors?.vendor_categories?.slug
+      if (!slug) continue
+      const existing = bestBySlug[slug]
+      const curP = STATUS_PRIORITY[interest.status] ?? 3
+      const exP = existing ? (STATUS_PRIORITY[existing.status] ?? 3) : 99
+      if (!existing || curP < exP || (curP === exP && (interest as any).preference_rank < existing.preference_rank)) {
+        bestBySlug[slug] = interest
+      }
+    }
+
+    let totalCommittedFee = 0
+    let totalProjectedCost = 0
+
+    const enriched = breakdown.map((item) => {
+      const slug = BUDGET_CATEGORY_TO_VENDOR_SLUG[item.category] ?? null
+      const interest = slug ? bestBySlug[slug] : null
+      const vendor = interest ? (interest as any).vendors : null
+      const committedFee = interest ? (committedFeeByVendor[interest.vendor_id] ?? 0) : 0
+      const projectedCost = vendor ? (vendor.service_fee ?? vendor.price_min ?? 0) : 0
+      totalCommittedFee += committedFee
+      totalProjectedCost += projectedCost
+      return {
+        category: item.category,
+        percentage: item.percentage,
+        recommended: item.amount,
+        vendor_category_slug: slug,
+        committed_fee: committedFee,
+        projected_cost: projectedCost,
+        vendor_name: vendor?.name ?? null,
+        interest_status: interest?.status ?? null,
+      }
+    })
+
+    return {
+      total_budget: totalBudget,
+      breakdown: enriched,
+      total_committed_fee: totalCommittedFee,
+      total_projected_cost: totalProjectedCost,
+      remaining: totalBudget ? totalBudget - totalProjectedCost : null,
+    }
   }
 }
