@@ -404,18 +404,24 @@ function AddInterestModal({
 export default function VendorsSection({
   eventId,
   guestCount,
+  initialCategory,
 }: {
   eventId: string
   guestCount?: number | null
+  initialCategory?: string
 }) {
   const { token } = useAuth()
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [interests, setInterests] = useState<Interest[]>([])
   const [categories, setCategories] = useState<Category[]>([])
-  const [activeCategory, setActiveCategory] = useState('')
+  const [activeCategory, setActiveCategory] = useState(initialCategory ?? '')
   const [addingVendor, setAddingVendor] = useState<Vendor | null>(null)
   const [removing, setRemoving] = useState<string | null>(null)
   const [loadingVendors, setLoadingVendors] = useState(true)
+
+  useEffect(() => {
+    if (initialCategory) setActiveCategory(initialCategory)
+  }, [initialCategory])
 
   const fetchInterests = useCallback(async () => {
     if (!token) return

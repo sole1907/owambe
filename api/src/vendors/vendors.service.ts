@@ -97,7 +97,7 @@ export class VendorsService {
     const client = this.supabase.getClient()
 
     const [{ data: event, error: eventError }, { data: plan }] = await Promise.all([
-      client.from('events').select('city, guest_count, budget_estimate').eq('id', eventId).eq('user_id', userId).single(),
+      client.from('events').select('city, guest_count_estimate, budget_estimate').eq('id', eventId).eq('user_id', userId).single(),
       client.from('event_plans').select('budget_breakdown').eq('event_id', eventId).single(),
     ])
 
@@ -140,8 +140,8 @@ export class VendorsService {
 
     // Exclude venues too small for guest count
     const eligible = (data ?? []).filter((v: any) => {
-      if (v.vendor_categories?.id === venueCategory?.id && v.capacity && event.guest_count) {
-        return v.capacity >= event.guest_count
+      if (v.vendor_categories?.id === venueCategory?.id && v.capacity && event.guest_count_estimate) {
+        return v.capacity >= event.guest_count_estimate
       }
       return true
     })

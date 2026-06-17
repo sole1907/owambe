@@ -56,6 +56,7 @@ export default function EventPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [initialVendorCategory, setInitialVendorCategory] = useState('')
 
   const handleSaveEvent = async (fields: Parameters<typeof api.patch>[1]) => {
     if (!event || !token) return
@@ -195,7 +196,7 @@ export default function EventPage() {
           eventId={event.id}
           initialItems={event.checklist_items}
           budgetBreakdown={event.event_plans?.budget_breakdown}
-          onFindVendors={() => setActiveTab('vendors')}
+          onFindVendors={(slug) => { setInitialVendorCategory(slug); setActiveTab('vendors') }}
         />
       )}
       {activeTab === 'budget' && event.event_plans && (
@@ -212,6 +213,7 @@ export default function EventPage() {
         <VendorsSection
           eventId={event.id}
           guestCount={event.guest_count_estimate}
+          initialCategory={initialVendorCategory}
         />
       )}
       {activeTab === 'guests' && <GuestListSection eventId={event.id} />}
