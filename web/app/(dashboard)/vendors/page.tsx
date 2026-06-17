@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useAuth } from '@/context/auth'
 import { api } from '@/lib/api'
 
@@ -14,9 +15,12 @@ type Vendor = {
   city: string
   price_min: number | null
   price_max: number | null
+  service_fee: number | null
   rating: number
   review_count: number
   is_featured: boolean
+  photos: string[]
+  capacity: number | null
   vendor_categories: Category
 }
 
@@ -100,44 +104,70 @@ export default function VendorsPage() {
         <p className="text-gray-400 text-sm">No vendors found for these filters.</p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {vendors.map((vendor) => (
-            <Link
-              key={vendor.id}
-              href={`/vendors/${vendor.slug}`}
-              className="block bg-white border border-gray-200 rounded-2xl p-5 hover:border-black transition"
-            >
-              {/* Placeholder image */}
-              <div className="w-full h-32 bg-gray-100 rounded-xl mb-4 flex items-center justify-center">
-                <span className="text-gray-300 text-sm">No photo yet</span>
-              </div>
+          {vendors.map((vendor) => {
+            const isVenue = vendor.vendor_categories?.slug === 'venues'
+            const priceLabel = vendor.service_fee
+              ? formatNaira(vendor.service_fee)
+              : vendor.price_min && vendor.price_max
+              ? `${formatNaira(vendor.price_min)} – ${formatNaira(vendor.price_max)}`
+              : 'Price on request'
 
-              <div className="flex items-start justify-between mb-1">
-                <h2 className="font-semibold text-gray-900 text-sm leading-tight">{vendor.name}</h2>
-                {vendor.is_featured && (
-                  <span className="text-xs bg-black text-white px-2 py-0.5 rounded-full ml-2 flex-shrink-0">
-                    Featured
-                  </span>
+            return (
+              <Link
+                key={vendor.id}
+                href={`/vendors/${vendor.slug}`}
+                className="block bg-white border border-gray-200 rounded-2xl overflow-hidden hover:border-black transition"
+              >
+                {/* Photo */}
+                {vendor.photos?.[0] ? (
+                  <div className="relative w-full h-36">
+                    <Image
+                      src={vendor.photos[0]}
+                      alt={vendor.name}
+                      fill
+                      className="object-cover"
+                    />
+                    {vendor.is_featured && (
+                      <span className="absolute top-2 left-2 text-xs bg-black text-white px-2 py-0.5 rounded-full">
+                        Featured
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="relative w-full h-36 bg-gray-100 flex items-center justify-center">
+                    <span className="text-gray-300 text-sm">No photo yet</span>
+                    {vendor.is_featured && (
+                      <span className="absolute top-2 left-2 text-xs bg-black text-white px-2 py-0.5 rounded-full">
+                        Featured
+                      </span>
+                    )}
+                  </div>
                 )}
-              </div>
 
-              <p className="text-xs text-gray-500 mb-2">
-                {vendor.vendor_categories?.name} · {vendor.city}
-              </p>
+                <div className="p-4">
+                  <div className="flex items-start justify-between mb-0.5 gap-2">
+                    <h2 className="font-semibold text-gray-900 text-sm leading-tight">{vendor.name}</h2>
+                    <span className="text-xs text-gray-500 shrink-0">★ {vendor.rating} ({vendor.review_count})</span>
+                  </div>
 
-              <p className="text-xs text-gray-500 line-clamp-2 mb-3">{vendor.description}</p>
+                  <p className="text-xs text-gray-500 mb-2">
+                    {vendor.vendor_categories?.name} · {vendor.city}
+                  </p>
 
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-700 font-medium">
-                  {vendor.price_min && vendor.price_max
-                    ? `${formatNaira(vendor.price_min)} – ${formatNaira(vendor.price_max)}`
-                    : 'Price on request'}
-                </span>
-                <span className="text-xs text-gray-500">
-                  ★ {vendor.rating} ({vendor.review_count})
-                </span>
-              </div>
-            </Link>
-          ))}
+                  {/* Venue capacity badge */}
+                  {isVenue && vendor.capacity && (
+                    <span className="inline-block text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2.5 py-0.5 font-medium mb-2">
+                      Up to {vendor.capacity.toLocaleString()} guests
+                    </span>
+                  )}
+
+                  <p className="text-xs text-gray-500 line-clamp-2 mb-3">{vendor.description}</p>
+
+                  <p className="text-xs font-semibold text-gray-900">{priceLabel}</p>
+                </div>
+              </Link>
+            )
+          })}
         </div>
       )}
     </div>
