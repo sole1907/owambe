@@ -243,7 +243,7 @@ export default function EventPage() {
               </button>
               <button
                 onClick={() => { setDeleteConfirm(false); setDeleteError('') }}
-                className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 transition"
+                className="px-4 py-2 border border-gray-300 text-gray-700 bg-white text-sm font-medium rounded-lg hover:bg-gray-50 transition"
               >
                 Cancel
               </button>

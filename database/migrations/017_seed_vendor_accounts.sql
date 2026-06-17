@@ -3,7 +3,7 @@
 -- ============================================================
 -- Run this AFTER migrations 001–016.
 -- Creates auth accounts for 12 featured vendors.
--- All accounts share password: Owambe2025!
+-- All accounts share password: !
 -- ============================================================
 
 -- ── 0. FIX ROLE CONSTRAINT ──────────────────────────────────
@@ -229,7 +229,7 @@ WHERE slug = 'abuja-event-planners';
 
 
 -- ── 2. VENDOR AUTH ACCOUNTS (featured vendors only) ─────────
--- Password for all accounts: Owambe2025!
+-- Password for all accounts: !
 -- Requires pgcrypto extension (enabled by default in Supabase)
 -- ─────────────────────────────────────────────────────────────
 
