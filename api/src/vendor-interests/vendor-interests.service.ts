@@ -19,7 +19,6 @@ export class VendorInterestsService {
   async getInterests(eventId: string, userId: string) {
     const client = this.supabase.getAdminClient()
 
-    // verify event ownership
     const { data: event, error: eventError } = await client
       .from('events')
       .select('id, title, event_date, event_date_approximate, user_id')
@@ -34,7 +33,9 @@ export class VendorInterestsService {
       .select(`
         id, preference_rank, status, event_date, expires_at,
         vendor_response_at, vendor_notes, created_at,
+        offered_price, counter_price, agreed_price,
         vendors (id, name, slug, city, price_min, price_max, rating, photos,
+          commitment_fee_percentage,
           vendor_categories (id, name, slug))
       `)
       .eq('event_id', eventId)
@@ -51,17 +52,15 @@ export class VendorInterestsService {
       throw new BadRequestException('Preference rank must be 1 (A), 2 (B), or 3 (C)')
     }
 
-    // verify event ownership and get event details
     const { data: event, error: eventError } = await client
       .from('events')
-      .select('id, title, event_date, event_date_approximate, city, guest_count')
+      .select('id, title, event_date, event_date_approximate, city, guest_count_estimate')
       .eq('id', eventId)
       .eq('user_id', userId)
       .single()
 
     if (eventError || !event) throw new NotFoundException('Event not found')
 
-    // get vendor details including category
     const { data: vendor, error: vendorError } = await client
       .from('vendors')
       .select(`id, name, email, whatsapp, city, capacity,
@@ -73,22 +72,20 @@ export class VendorInterestsService {
 
     if (vendorError || !vendor) throw new NotFoundException('Vendor not found')
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const v = vendor as any
 
-    // check capacity for venues
+    // Capacity check for venues
     if (
       v.vendor_categories?.slug === 'venues' &&
       v.capacity &&
-      event.guest_count &&
-      v.capacity < event.guest_count
+      event.guest_count_estimate &&
+      v.capacity < event.guest_count_estimate
     ) {
       throw new BadRequestException(
-        `This venue has a capacity of ${v.capacity} guests but your event has ${event.guest_count} expected guests.`,
+        `This venue holds ${v.capacity.toLocaleString()} guests but your event has ~${event.guest_count_estimate.toLocaleString()} expected.`,
       )
     }
 
-    // check if already shortlisted
     const { data: existing } = await client
       .from('vendor_interests')
       .select('id')
@@ -98,7 +95,6 @@ export class VendorInterestsService {
 
     if (existing) throw new BadRequestException('This vendor is already on your shortlist for this event.')
 
-    // check if rank slot is taken
     const { data: slotTaken } = await client
       .from('vendor_interests')
       .select('id, vendors (name)')
@@ -114,7 +110,6 @@ export class VendorInterestsService {
       )
     }
 
-    // check availability — if vendor has the event date blocked/booked, mark immediately unavailable
     const eventDate = event.event_date ?? null
     let initialStatus = 'pending'
 
@@ -128,9 +123,6 @@ export class VendorInterestsService {
     const expiresAt = new Date()
     expiresAt.setHours(expiresAt.getHours() + 48)
 
-    // get vendor email for notification
-    const vendorEmail = v.email as string | null
-
     const { data: interest, error: insertError } = await client
       .from('vendor_interests')
       .insert({
@@ -142,21 +134,26 @@ export class VendorInterestsService {
         status: initialStatus,
         event_date: eventDate,
         expires_at: expiresAt.toISOString(),
+        offered_price: dto.offeredPrice ?? null,
       })
       .select()
       .single()
 
     if (insertError) throw new InternalServerErrorException(insertError.message)
 
-    // send email if pending (vendor needs to respond)
-    if (initialStatus === 'pending' && vendorEmail) {
+    if (initialStatus === 'pending' && v.email) {
+      const offeredPriceFormatted = dto.offeredPrice
+        ? new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(dto.offeredPrice)
+        : null
+
       await this.email.sendVendorInquiry({
-        to: vendorEmail,
+        to: v.email,
         vendorName: v.name,
         eventTitle: event.title,
         eventDate: eventDate ?? event.event_date_approximate ?? 'Date TBC',
         eventCity: event.city ?? '',
         expiresAt: expiresAt.toISOString(),
+        offeredPrice: offeredPriceFormatted,
       })
     }
 
@@ -185,7 +182,34 @@ export class VendorInterestsService {
     return { message: 'Removed from shortlist' }
   }
 
-  // ─── Vendor portal: get incoming inquiries ──────────────────────────────────
+  // Accept vendor's counter-offer (user-side)
+  async acceptCounter(eventId: string, interestId: string, userId: string) {
+    const client = this.supabase.getAdminClient()
+
+    const { data: interest, error } = await client
+      .from('vendor_interests')
+      .select('id, status, counter_price')
+      .eq('id', interestId)
+      .eq('event_id', eventId)
+      .eq('user_id', userId)
+      .single()
+
+    if (error || !interest) throw new NotFoundException('Interest not found')
+    if (interest.status !== 'quoted') throw new BadRequestException('No counter-offer to accept.')
+    if (!interest.counter_price) throw new BadRequestException('Counter price is missing.')
+
+    const { data, error: updateError } = await client
+      .from('vendor_interests')
+      .update({ status: 'available', agreed_price: interest.counter_price })
+      .eq('id', interestId)
+      .select()
+      .single()
+
+    if (updateError) throw new InternalServerErrorException(updateError.message)
+    return data
+  }
+
+  // ─── Vendor portal ──────────────────────────────────────────────────────────
 
   async getInquiries(vendorUserId: string) {
     const client = this.supabase.getAdminClient()
@@ -203,7 +227,8 @@ export class VendorInterestsService {
       .select(`
         id, preference_rank, status, event_date, expires_at,
         vendor_response_at, vendor_notes, created_at,
-        events (id, title, city, guest_count),
+        offered_price, counter_price, agreed_price,
+        events (id, title, city, guest_count_estimate),
         users (full_name, email, phone)
       `)
       .eq('vendor_id', vendor.id)
@@ -218,7 +243,7 @@ export class VendorInterestsService {
 
     const { data: vendor } = await client
       .from('vendors')
-      .select('id, name, email')
+      .select('id, name, email, commitment_fee_percentage')
       .eq('user_id', vendorUserId)
       .single()
 
@@ -226,18 +251,34 @@ export class VendorInterestsService {
 
     const { data: interest, error: interestError } = await client
       .from('vendor_interests')
-      .select(`id, status, event_id, user_id, events (title, city, event_date), users (email, full_name)`)
+      .select(`
+        id, status, event_id, user_id, offered_price,
+        events (title, city, event_date),
+        users (email, full_name)
+      `)
       .eq('id', interestId)
       .eq('vendor_id', vendor.id)
       .single()
 
     if (interestError || !interest) throw new NotFoundException('Inquiry not found')
 
-    if (interest.status !== 'pending') {
-      throw new BadRequestException('This inquiry has already been responded to or has expired.')
+    if (!['pending', 'quoted'].includes(interest.status)) {
+      throw new BadRequestException('This inquiry has already been finalised or has expired.')
     }
 
-    const newStatus = dto.available ? 'available' : 'unavailable'
+    let newStatus: string
+    let agreedPrice: number | null = null
+
+    if (!dto.available) {
+      newStatus = 'unavailable'
+    } else if (dto.counterPrice && dto.counterPrice !== (interest as any).offered_price) {
+      // Vendor is available but wants a different price
+      newStatus = 'quoted'
+    } else {
+      // Vendor accepts at offered price (or no counter given)
+      newStatus = 'available'
+      agreedPrice = (interest as any).offered_price ?? null
+    }
 
     const { data, error } = await client
       .from('vendor_interests')
@@ -245,6 +286,8 @@ export class VendorInterestsService {
         status: newStatus,
         vendor_response_at: new Date().toISOString(),
         vendor_notes: dto.notes ?? null,
+        counter_price: dto.counterPrice ?? null,
+        agreed_price: agreedPrice,
       })
       .eq('id', interestId)
       .select()
@@ -252,11 +295,10 @@ export class VendorInterestsService {
 
     if (error) throw new InternalServerErrorException(error.message)
 
-    // notify organiser
     const organiserEmail = (interest.users as any)?.email
     const eventTitle = (interest.events as any)?.title ?? 'your event'
-    const eventCity = (interest.events as any)?.city ?? ''
     const eventDate = (interest.events as any)?.event_date ?? ''
+    const eventCity = (interest.events as any)?.city ?? ''
 
     if (organiserEmail) {
       await this.email.sendVendorResponse({

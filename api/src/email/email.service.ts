@@ -37,6 +37,7 @@ type VendorInquiryEmailParams = {
   eventDate: string
   eventCity: string
   expiresAt: string
+  offeredPrice?: string | null // formatted Naira string, e.g. "₦1,500,000"
 }
 
 type VendorResponseEmailParams = {
@@ -382,6 +383,19 @@ export class EmailService {
 
       ${eventCard(params.eventTitle, params.eventDate, params.eventCity)}
 
+      ${params.offeredPrice ? `
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#f0fdf4;border-radius:12px;border:1px solid #bbf7d0;margin-bottom:16px;">
+        <tr>
+          <td style="padding:16px 20px;">
+            <p style="margin:0;font-size:13px;color:#166534;">
+              💰 The organiser has offered <strong>${params.offeredPrice}</strong> for this booking.
+              You can accept this price or suggest a counter-offer when you respond.
+            </p>
+          </td>
+        </tr>
+      </table>` : ''}
+
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
              style="background:#fffbeb;border-radius:12px;border:1px solid #fde68a;margin-bottom:24px;">
         <tr>
@@ -394,7 +408,7 @@ export class EmailService {
       </table>
 
       <p style="margin:0 0 20px;font-size:14px;color:#6b7280;text-align:center;">
-        Log in to your vendor portal to confirm your availability.
+        Log in to your vendor portal to confirm your availability and price.
       </p>
     `
 

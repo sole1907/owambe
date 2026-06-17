@@ -15,7 +15,6 @@ type Vendor = {
   city: string
   price_min: number | null
   price_max: number | null
-  service_fee: number | null
   rating: number
   review_count: number
   photos: string[]
@@ -27,15 +26,17 @@ type Vendor = {
 type Interest = {
   id: string
   preference_rank: number // 1=A, 2=B, 3=C
-  status: 'pending' | 'available' | 'unavailable' | 'expired' | 'committed'
+  status: 'pending' | 'available' | 'quoted' | 'unavailable' | 'expired' | 'committed'
   event_date: string | null
   expires_at: string | null
   vendor_response_at: string | null
   vendor_notes: string | null
+  offered_price: number | null
+  counter_price: number | null
+  agreed_price: number | null
   vendors: Vendor & {
     vendor_categories: Category
     commitment_fee_percentage: number
-    service_fee: number | null
   }
 }
 
@@ -50,6 +51,7 @@ const RANK_LABEL = ['A', 'B', 'C']
 const STATUS_STYLES: Record<Interest['status'], string> = {
   pending: 'bg-amber-100 text-amber-800',
   available: 'bg-green-100 text-green-800',
+  quoted: 'bg-purple-100 text-purple-800',
   unavailable: 'bg-red-100 text-red-800',
   expired: 'bg-gray-100 text-gray-500',
   committed: 'bg-blue-100 text-blue-800',
@@ -58,6 +60,7 @@ const STATUS_STYLES: Record<Interest['status'], string> = {
 const STATUS_LABEL: Record<Interest['status'], string> = {
   pending: 'Awaiting response',
   available: 'Available ✓',
+  quoted: 'Counter received',
   unavailable: 'Not available',
   expired: 'Expired',
   committed: 'Committed ✓',
@@ -124,10 +127,10 @@ function VendorCard({
 
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-gray-800">
-            {vendor.service_fee
-              ? formatNaira(vendor.service_fee)
-              : vendor.price_min && vendor.price_max
+            {vendor.price_min && vendor.price_max
               ? `${formatNaira(vendor.price_min)} – ${formatNaira(vendor.price_max)}`
+              : vendor.price_min
+              ? `From ${formatNaira(vendor.price_min)}`
               : 'Price on request'}
           </span>
           {alreadyShortlisted ? (
@@ -152,10 +155,12 @@ function VendorCard({
 
 function ShortlistCard({
   interest,
+  eventId,
   onRemove,
   onCommitted,
 }: {
   interest: Interest
+  eventId: string
   onRemove: (id: string) => void
   onCommitted: (id: string) => void
 }) {
@@ -164,12 +169,32 @@ function ShortlistCard({
   const rank = RANK_LABEL[interest.preference_rank - 1]
   const [paying, setPaying] = useState(false)
   const [payError, setPayError] = useState('')
+  const [accepting, setAccepting] = useState(false)
+  const [acceptError, setAcceptError] = useState('')
 
-  const commitmentFee = (() => {
-    const base = vendor.service_fee ?? vendor.price_min
-    if (!base || !vendor.commitment_fee_percentage) return null
-    return Math.round((base * vendor.commitment_fee_percentage) / 100)
-  })()
+  // Agreed price = counter accepted by user, or offered price if vendor accepted directly
+  const priceBasis = interest.agreed_price ?? interest.offered_price
+  const commitmentFee = priceBasis && vendor.commitment_fee_percentage
+    ? Math.round((priceBasis * vendor.commitment_fee_percentage) / 100)
+    : null
+
+  const handleAcceptCounter = async () => {
+    if (!token) return
+    setAccepting(true)
+    setAcceptError('')
+    try {
+      await api.post(
+        `/events/${eventId}/vendor-interests/${interest.id}/accept-counter`,
+        {},
+        token,
+      )
+      onCommitted(interest.id)
+    } catch (err) {
+      setAcceptError(err instanceof Error ? err.message : 'Failed to accept counter.')
+    } finally {
+      setAccepting(false)
+    }
+  }
 
   const handlePay = async () => {
     if (!token) return
@@ -255,6 +280,26 @@ function ShortlistCard({
             </span>
           </div>
           <p className="text-xs text-gray-400 mt-0.5">{vendor.city}</p>
+
+          {/* Pricing summary */}
+          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+            {interest.offered_price && (
+              <p className="text-xs text-gray-500">
+                Your offer: <span className="font-medium text-gray-700">{formatNaira(interest.offered_price)}</span>
+              </p>
+            )}
+            {interest.counter_price && (
+              <p className="text-xs text-purple-700 font-medium">
+                Counter: {formatNaira(interest.counter_price)}
+              </p>
+            )}
+            {interest.agreed_price && (
+              <p className="text-xs text-green-700 font-medium">
+                Agreed: {formatNaira(interest.agreed_price)} ✓
+              </p>
+            )}
+          </div>
+
           {interest.vendor_notes && (
             <p className="text-xs text-gray-600 mt-1 italic">&ldquo;{interest.vendor_notes}&rdquo;</p>
           )}
@@ -271,6 +316,24 @@ function ShortlistCard({
         )}
       </div>
 
+      {/* Counter-offer: vendor countered, user can accept */}
+      {interest.status === 'quoted' && interest.counter_price && (
+        <div className="mt-3 pl-10 bg-purple-50 rounded-lg p-3 border border-purple-200">
+          <p className="text-xs text-purple-800 mb-2">
+            Vendor countered at <strong>{formatNaira(interest.counter_price)}</strong>
+            {interest.offered_price && ` (you offered ${formatNaira(interest.offered_price)})`}
+          </p>
+          {acceptError && <p className="text-xs text-red-600 mb-2">{acceptError}</p>}
+          <button
+            onClick={handleAcceptCounter}
+            disabled={accepting}
+            className="text-xs bg-purple-700 text-white px-4 py-2 rounded-lg hover:bg-purple-800 disabled:opacity-50 transition font-medium"
+          >
+            {accepting ? 'Accepting...' : `Accept ${formatNaira(interest.counter_price)} →`}
+          </button>
+        </div>
+      )}
+
       {interest.status === 'available' && (
         <div className="mt-3 pl-10">
           {payError && <p className="text-xs text-red-600 mb-2">{payError}</p>}
@@ -286,7 +349,7 @@ function ShortlistCard({
               : 'Pay commitment fee'}
           </button>
           <p className="text-xs text-gray-400 mt-1">
-            {vendor.commitment_fee_percentage}% of service fee · held until after your event
+            {vendor.commitment_fee_percentage}% of {priceBasis ? formatNaira(priceBasis) : 'agreed price'} · held until after your event
           </p>
         </div>
       )}
@@ -294,15 +357,36 @@ function ShortlistCard({
   )
 }
 
+// Compute a smart suggested offer:
+// - If vendor's max is within budget: offer the midpoint (save the user money)
+// - Otherwise: offer the full budget
+function computeSuggestedOffer(
+  priceMin: number | null,
+  priceMax: number | null,
+  categoryBudget: number | null,
+): number | null {
+  if (!categoryBudget) return null
+  const max = priceMax ?? priceMin
+  const min = priceMin ?? 0
+  if (!max) return categoryBudget
+  if (max <= categoryBudget) {
+    // Vendor's full range fits within budget — start at midpoint to save money
+    return Math.round(((min + max) / 2) / 10000) * 10000
+  }
+  return categoryBudget
+}
+
 function AddInterestModal({
   vendor,
   eventId,
+  categoryBudget,
   existingInterests,
   onAdd,
   onClose,
 }: {
   vendor: Vendor
   eventId: string
+  categoryBudget: number | null
   existingInterests: Interest[]
   onAdd: (interest: Interest) => void
   onClose: () => void
@@ -311,6 +395,10 @@ function AddInterestModal({
   const [rank, setRank] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const suggestedOffer = computeSuggestedOffer(vendor.price_min, vendor.price_max, categoryBudget)
+  const [offerAmount, setOfferAmount] = useState<string>(suggestedOffer ? String(suggestedOffer) : '')
+  const isMidpoint = suggestedOffer !== null && vendor.price_max !== null && vendor.price_max <= (categoryBudget ?? 0)
 
   const categoryInterests = existingInterests.filter(
     (i) => i.vendors.vendor_categories?.id === vendor.vendor_categories?.id,
@@ -322,9 +410,10 @@ function AddInterestModal({
     setLoading(true)
     setError('')
     try {
+      const parsedOffer = offerAmount ? parseInt(offerAmount.replace(/[^0-9]/g, ''), 10) : undefined
       const result = await api.post<Interest>(
         `/events/${eventId}/vendor-interests`,
-        { vendorId: vendor.id, preferenceRank: rank },
+        { vendorId: vendor.id, preferenceRank: rank, offeredPrice: parsedOffer || undefined },
         token,
       )
       onAdd(result)
@@ -348,7 +437,36 @@ function AddInterestModal({
         <h3 className="font-semibold text-gray-900 mb-1">Add to shortlist</h3>
         <p className="text-sm text-gray-500 mb-4">
           {vendor.name} · {vendor.vendor_categories?.name}
+          {vendor.price_min && vendor.price_max && (
+            <span className="text-gray-400"> · {formatNaira(vendor.price_min)}–{formatNaira(vendor.price_max)}</span>
+          )}
         </p>
+
+        {/* Offer amount */}
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-gray-700 mb-1">Your offer (₦)</label>
+          <input
+            type="number"
+            min={0}
+            value={offerAmount}
+            onChange={(e) => setOfferAmount(e.target.value)}
+            placeholder="e.g. 1500000"
+            className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+          />
+          {suggestedOffer && (
+            <p className="text-xs text-gray-400 mt-1.5">
+              {isMidpoint
+                ? `Suggested ₦${suggestedOffer.toLocaleString()} — midpoint of vendor's range, which fits within your ${formatNaira(categoryBudget!)} budget. You could save money if they accept.`
+                : `Suggested ₦${suggestedOffer.toLocaleString()} — your full ${formatNaira(categoryBudget!)} budget for this category.`}
+              {' '}You can adjust up or down.
+            </p>
+          )}
+          {!suggestedOffer && (
+            <p className="text-xs text-gray-400 mt-1.5">
+              Enter your opening offer. The vendor can accept or counter with a different price.
+            </p>
+          )}
+        </div>
 
         <p className="text-xs font-medium text-gray-600 mb-2">Choose preference slot</p>
         <div className="flex gap-2 mb-4">
@@ -375,8 +493,8 @@ function AddInterestModal({
         </div>
 
         <p className="text-xs text-gray-400 mb-4">
-          A = first choice, B = backup, C = third option. The vendor will be notified and asked about
-          their availability for your event date.
+          A = first choice, B = backup, C = third option. The vendor will be notified with your offer and asked about
+          their availability.
         </p>
 
         {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
@@ -393,7 +511,7 @@ function AddInterestModal({
             onClick={handleAdd}
             className="flex-1 py-2.5 bg-black text-white text-sm font-medium rounded-xl hover:bg-gray-800 disabled:opacity-40 transition"
           >
-            {loading ? 'Adding...' : 'Add vendor'}
+            {loading ? 'Sending...' : 'Send offer'}
           </button>
         </div>
       </div>
@@ -401,14 +519,26 @@ function AddInterestModal({
   )
 }
 
+const BUDGET_CATEGORY_TO_SLUG: Record<string, string> = {
+  'Venue': 'venues', 'Catering': 'caterers', 'Decoration': 'decorators',
+  'Photography': 'photographers', 'Videography': 'videographers',
+  'Photography / Videography': 'photographers', 'DJ / Live Band': 'djs',
+  'DJ / Entertainment': 'djs', 'Entertainment': 'djs', 'MC': 'mcs',
+  'Makeup Artist': 'makeup-artists', 'Event Coordinator': 'event-coordinators',
+}
+
+type BudgetBreakdownItem = { category: string; percentage: number; amount: number | null }
+
 export default function VendorsSection({
   eventId,
   guestCount,
   initialCategory,
+  budgetBreakdown,
 }: {
   eventId: string
   guestCount?: number | null
   initialCategory?: string
+  budgetBreakdown?: BudgetBreakdownItem[]
 }) {
   const { token } = useAuth()
   const [vendors, setVendors] = useState<Vendor[]>([])
@@ -519,6 +649,7 @@ export default function VendorsSection({
                       <ShortlistCard
                         key={interest.id}
                         interest={interest}
+                        eventId={eventId}
                         onRemove={removing === interest.id ? () => {} : handleRemove}
                         onCommitted={handleCommitted}
                       />
@@ -628,6 +759,11 @@ export default function VendorsSection({
         <AddInterestModal
           vendor={addingVendor}
           eventId={eventId}
+          categoryBudget={(() => {
+            const slug = addingVendor.vendor_categories?.slug
+            const match = budgetBreakdown?.find(b => BUDGET_CATEGORY_TO_SLUG[b.category] === slug)
+            return match?.amount ?? null
+          })()}
           existingInterests={interests}
           onAdd={handleAdd}
           onClose={() => setAddingVendor(null)}

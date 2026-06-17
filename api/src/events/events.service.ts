@@ -302,9 +302,9 @@ export class EventsService {
     const [{ data: interests }, { data: payments }] = await Promise.all([
       client
         .from('vendor_interests')
-        .select('id, status, vendor_id, preference_rank, vendors(name, service_fee, price_min, vendor_categories(slug))')
+        .select('id, status, vendor_id, preference_rank, offered_price, agreed_price, vendors(name, price_min, vendor_categories(slug))')
         .eq('event_id', eventId)
-        .in('status', ['pending', 'available', 'committed']),
+        .in('status', ['pending', 'available', 'quoted', 'committed']),
       client
         .from('commitment_payments')
         .select('vendor_id, amount_kobo')
@@ -318,7 +318,7 @@ export class EventsService {
     }
 
     // Pick best interest per vendor category (committed > available > pending, then rank 1 > 2 > 3)
-    const STATUS_PRIORITY: Record<string, number> = { committed: 0, available: 1, pending: 2 }
+    const STATUS_PRIORITY: Record<string, number> = { committed: 0, available: 1, quoted: 2, pending: 3 }
     const bestBySlug: Record<string, any> = {}
     for (const interest of interests ?? []) {
       const slug = (interest as any).vendors?.vendor_categories?.slug
@@ -339,7 +339,9 @@ export class EventsService {
       const interest = slug ? bestBySlug[slug] : null
       const vendor = interest ? (interest as any).vendors : null
       const committedFee = interest ? (committedFeeByVendor[interest.vendor_id] ?? 0) : 0
-      const projectedCost = vendor ? (vendor.service_fee ?? vendor.price_min ?? 0) : 0
+      const projectedCost = interest
+        ? ((interest as any).agreed_price ?? (interest as any).offered_price ?? vendor?.price_min ?? 0)
+        : 0
       totalCommittedFee += committedFee
       totalProjectedCost += projectedCost
       return {

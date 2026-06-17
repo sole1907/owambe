@@ -155,7 +155,7 @@ export class VendorsService {
       const categoryBudget = categorySlug ? (categoryBudgetMap[categorySlug] ?? null) : null
       const fallbackBudget = event.budget_estimate ?? null
       const effectiveBudget = categoryBudget ?? fallbackBudget
-      const vendorPrice = v.service_fee ?? v.price_min ?? null
+      const vendorPrice = v.price_min ?? null
       const fits = !effectiveBudget || !vendorPrice || vendorPrice <= effectiveBudget
       if (fits) {
         withinBudget.push({ ...v, is_within_budget: true })

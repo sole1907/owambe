@@ -7,17 +7,20 @@ import { api } from '@/lib/api'
 type Inquiry = {
   id: string
   preference_rank: number
-  status: 'pending' | 'available' | 'unavailable' | 'expired'
+  status: 'pending' | 'available' | 'quoted' | 'unavailable' | 'expired' | 'committed'
   event_date: string | null
   expires_at: string | null
   vendor_response_at: string | null
   vendor_notes: string | null
   created_at: string
+  offered_price: number | null
+  counter_price: number | null
+  agreed_price: number | null
   events: {
     id: string
     title: string
     city: string | null
-    guest_count: number | null
+    guest_count_estimate: number | null
   }
   users: {
     full_name: string | null
@@ -26,20 +29,30 @@ type Inquiry = {
   }
 }
 
+function formatNaira(value: number) {
+  if (value >= 1000000) return `₦${(value / 1000000).toFixed(1)}M`
+  if (value >= 1000) return `₦${(value / 1000).toFixed(0)}k`
+  return `₦${value.toLocaleString()}`
+}
+
 const RANK_LABEL = ['A', 'B', 'C']
 
 const STATUS_STYLES: Record<Inquiry['status'], string> = {
   pending: 'bg-amber-100 text-amber-800',
   available: 'bg-green-100 text-green-800',
+  quoted: 'bg-purple-100 text-purple-800',
   unavailable: 'bg-red-100 text-red-800',
   expired: 'bg-gray-100 text-gray-400',
+  committed: 'bg-blue-100 text-blue-800',
 }
 
 const STATUS_LABEL: Record<Inquiry['status'], string> = {
   pending: 'Awaiting your response',
-  available: 'Confirmed available',
+  available: 'Accepted at offered price',
+  quoted: 'Counter-offer sent',
   unavailable: 'Marked unavailable',
   expired: 'Expired',
+  committed: 'Commitment fee paid ✓',
 }
 
 function RespondModal({
@@ -48,10 +61,11 @@ function RespondModal({
   onClose,
 }: {
   inquiry: Inquiry
-  onRespond: (id: string, available: boolean, notes: string) => Promise<void>
+  onRespond: (id: string, available: boolean, notes: string, counterPrice?: number) => Promise<void>
   onClose: () => void
 }) {
   const [available, setAvailable] = useState<boolean | null>(null)
+  const [counterPrice, setCounterPrice] = useState('')
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -61,7 +75,8 @@ function RespondModal({
     setLoading(true)
     setError('')
     try {
-      await onRespond(inquiry.id, available, notes)
+      const parsed = counterPrice ? parseInt(counterPrice.replace(/[^0-9]/g, ''), 10) : undefined
+      await onRespond(inquiry.id, available, notes, parsed || undefined)
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not submit response.')
@@ -83,6 +98,16 @@ function RespondModal({
         <p className="text-sm text-gray-500 mb-4">
           {inquiry.events?.title}{inquiry.event_date ? ` · ${new Date(inquiry.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}
         </p>
+
+        {/* Show offered price to vendor */}
+        {inquiry.offered_price && (
+          <div className="mb-4 bg-green-50 border border-green-200 rounded-xl px-3 py-2.5">
+            <p className="text-xs text-green-800">
+              Organiser&apos;s offer: <strong>{formatNaira(inquiry.offered_price)}</strong>
+              {inquiry.events?.guest_count_estimate ? ` · ~${inquiry.events.guest_count_estimate.toLocaleString()} guests` : ''}
+            </p>
+          </div>
+        )}
 
         <p className="text-xs font-medium text-gray-600 mb-2">Are you available on this date?</p>
         <div className="flex gap-2 mb-4">
@@ -108,13 +133,32 @@ function RespondModal({
           </button>
         </div>
 
+        {available === true && (
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Your price (₦) — leave blank to accept the offer
+            </label>
+            <input
+              type="number"
+              min={0}
+              value={counterPrice}
+              onChange={(e) => setCounterPrice(e.target.value)}
+              placeholder={inquiry.offered_price ? `Offered: ${inquiry.offered_price.toLocaleString()}` : 'Your price'}
+              className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              If you enter a different price, the organiser will be asked to accept your counter-offer.
+            </p>
+          </div>
+        )}
+
         <div className="mb-4">
           <label className="block text-xs font-medium text-gray-600 mb-1">
             Message to organiser (optional)
           </label>
           <textarea
             rows={2}
-            placeholder={available === false ? 'e.g. I am fully booked on that date.' : 'e.g. Looking forward to it! Please get in touch to confirm.'}
+            placeholder={available === false ? 'e.g. I am fully booked on that date.' : 'e.g. Looking forward to it! Deposit secures the date.'}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
@@ -157,20 +201,25 @@ export default function VendorInquiriesPage() {
       .finally(() => setLoading(false))
   }, [token])
 
-  const handleRespond = async (id: string, available: boolean, notes: string) => {
+  const handleRespond = async (id: string, available: boolean, notes: string, counterPrice?: number) => {
     if (!token) return
-    await api.patch(`/vendor-portal/inquiries/${id}`, { available, notes: notes || undefined }, token)
+    await api.patch(
+      `/vendor-portal/inquiries/${id}`,
+      { available, notes: notes || undefined, counterPrice: counterPrice || undefined },
+      token,
+    )
     setInquiries((prev) =>
-      prev.map((i) =>
-        i.id === id
-          ? {
-              ...i,
-              status: available ? 'available' : 'unavailable',
-              vendor_notes: notes || null,
-              vendor_response_at: new Date().toISOString(),
-            }
-          : i,
-      ),
+      prev.map((i) => {
+        if (i.id !== id) return i
+        const newStatus = !available ? 'unavailable' : counterPrice ? 'quoted' : 'available'
+        return {
+          ...i,
+          status: newStatus as Inquiry['status'],
+          vendor_notes: notes || null,
+          counter_price: counterPrice ?? null,
+          vendor_response_at: new Date().toISOString(),
+        }
+      }),
     )
   }
 
@@ -268,7 +317,7 @@ function InquiryCard({
                   year: 'numeric',
                 })
               : 'Date TBC'}
-            {inquiry.events?.guest_count ? ` · ~${inquiry.events.guest_count.toLocaleString()} guests` : ''}
+            {inquiry.events?.guest_count_estimate ? ` · ~${inquiry.events.guest_count_estimate.toLocaleString()} guests` : ''}
           </p>
         </div>
         <span
@@ -283,6 +332,13 @@ function InquiryCard({
           From: {inquiry.users?.full_name || 'Organiser'} ({inquiry.users?.email})
           {inquiry.users?.phone && ` · ${inquiry.users.phone}`}
         </p>
+        {inquiry.offered_price && (
+          <p className="mt-1 text-green-700 font-medium">
+            Offer: {formatNaira(inquiry.offered_price)}
+            {inquiry.counter_price && ` · Your counter: ${formatNaira(inquiry.counter_price)}`}
+            {inquiry.agreed_price && ` · Agreed: ${formatNaira(inquiry.agreed_price)} ✓`}
+          </p>
+        )}
       </div>
 
       {inquiry.vendor_notes && (

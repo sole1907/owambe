@@ -37,6 +37,15 @@ export class VendorInterestsController {
     return this.service.addInterest(eventId, user.id, dto)
   }
 
+  @Post('events/:eventId/vendor-interests/:interestId/accept-counter')
+  acceptCounter(
+    @Param('eventId') eventId: string,
+    @Param('interestId') interestId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.service.acceptCounter(eventId, interestId, user.id)
+  }
+
   @Delete('events/:eventId/vendor-interests/:interestId')
   removeInterest(
     @Param('eventId') eventId: string,

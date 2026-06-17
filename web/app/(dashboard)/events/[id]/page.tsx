@@ -214,6 +214,7 @@ export default function EventPage() {
           eventId={event.id}
           guestCount={event.guest_count_estimate}
           initialCategory={initialVendorCategory}
+          budgetBreakdown={event.event_plans?.budget_breakdown}
         />
       )}
       {activeTab === 'guests' && <GuestListSection eventId={event.id} />}

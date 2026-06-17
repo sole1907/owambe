@@ -53,15 +53,9 @@ export class PaymentsService {
 
   // ── Calculate the commitment amount for an interest ──────────────────────────
 
-  private calculateCommitmentKobo(vendor: {
-    commitment_fee_percentage: number
-    service_fee: number | null
-    price_min: number | null
-  }): number {
-    const base = vendor.service_fee ?? vendor.price_min
-    if (!base) throw new BadRequestException('Vendor has no service fee or price set. Cannot calculate commitment fee.')
-    // base is in Naira, convert to kobo (× 100)
-    return Math.round((base * vendor.commitment_fee_percentage) / 100) * 100
+  private calculateCommitmentKobo(agreedPrice: number, commitmentPct: number): number {
+    // agreedPrice is in Naira, convert result to kobo (× 100)
+    return Math.round((agreedPrice * commitmentPct) / 100) * 100
   }
 
   // ── Initialize a commitment fee payment ──────────────────────────────────────
@@ -74,8 +68,9 @@ export class PaymentsService {
       .from('vendor_interests')
       .select(`
         id, status, event_id, vendor_id,
+        agreed_price, offered_price,
         vendors (
-          id, name, commitment_fee_percentage, service_fee, price_min,
+          id, name, commitment_fee_percentage,
           vendor_categories (name)
         ),
         events (id, title, event_date, event_date_approximate, city)
@@ -117,8 +112,14 @@ export class PaymentsService {
     const vendor = interest.vendors as any
     const event = interest.events as any
 
-    const amountKobo = this.calculateCommitmentKobo(vendor)
+    // Use agreed_price (set after negotiation) or fall back to offered_price
+    const agreedPrice = (interest as any).agreed_price ?? (interest as any).offered_price
+    if (!agreedPrice) {
+      throw new BadRequestException('No agreed price on this booking. The vendor must respond with a price first.')
+    }
+
     const commitmentPct = vendor.commitment_fee_percentage
+    const amountKobo = this.calculateCommitmentKobo(agreedPrice, commitmentPct)
 
     // Get user email
     const { data: user } = await client
