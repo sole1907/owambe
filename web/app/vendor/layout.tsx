@@ -13,7 +13,7 @@ const NAV = [
 ]
 
 export default function VendorLayout({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth()
+  const { user, isLoading, signOut } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
 
@@ -33,7 +33,7 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
           <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Vendor Portal</p>
           <p className="text-sm font-semibold text-gray-900 truncate">{user.full_name || user.email}</p>
         </div>
-        <nav className="flex flex-col gap-1">
+        <nav className="flex flex-col gap-1 flex-1">
           {NAV.map((item) => (
             <Link
               key={item.href}
@@ -48,6 +48,12 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
             </Link>
           ))}
         </nav>
+        <button
+          onClick={signOut}
+          className="mt-4 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-red-600 hover:bg-red-50 transition text-left"
+        >
+          Sign out
+        </button>
       </aside>
 
       {/* Main content */}
