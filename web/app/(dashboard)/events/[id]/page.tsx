@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/context/auth'
 import { api } from '@/lib/api'
@@ -48,9 +48,15 @@ export default function EventPage() {
   const { id } = useParams<{ id: string }>()
   const { token } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'checklist' | 'budget' | 'vendors' | 'guests' | 'gifts'>('checklist')
+  const tabParam = searchParams.get('tab')
+  const validTabs = ['checklist', 'budget', 'vendors', 'guests', 'gifts'] as const
+  type TabType = typeof validTabs[number]
+  const [activeTab, setActiveTab] = useState<TabType>(
+    validTabs.includes(tabParam as TabType) ? (tabParam as TabType) : 'checklist',
+  )
   const [pendingRequestCount, setPendingRequestCount] = useState(0)
   const [editOpen, setEditOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)

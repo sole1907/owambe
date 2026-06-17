@@ -165,11 +165,13 @@ function CounterNegotiationRow({
   eventId,
   onAccepted,
   onCounterBack,
+  onDecline,
 }: {
   interest: Interest
   eventId: string
   onAccepted: (id: string) => void
   onCounterBack: (id: string) => void
+  onDecline: (id: string) => void
 }) {
   const { token } = useAuth()
   const [mode, setMode] = useState<'idle' | 'countering'>('idle')
@@ -232,7 +234,7 @@ function CounterNegotiationRow({
       {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
 
       {mode === 'idle' ? (
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button
             onClick={handleAccept}
             disabled={accepting}
@@ -240,18 +242,20 @@ function CounterNegotiationRow({
           >
             {accepting ? '...' : `Accept ${formatNaira(interest.counter_price!)}`}
           </button>
-          {!interest.is_final_offer && (
+          {interest.is_final_offer ? (
+            <button
+              onClick={() => onDecline(interest.id)}
+              className="text-xs border border-red-300 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition font-medium"
+            >
+              Decline
+            </button>
+          ) : (
             <button
               onClick={() => setMode('countering')}
               className="text-xs border border-purple-300 text-purple-700 px-3 py-1.5 rounded-lg hover:bg-purple-100 transition font-medium"
             >
               Counter back
             </button>
-          )}
-          {interest.is_final_offer && (
-            <span className="text-xs text-red-600 self-center">
-              Accept or decline — no counter allowed
-            </span>
           )}
         </div>
       ) : (
@@ -449,6 +453,7 @@ function ShortlistCard({
           eventId={eventId}
           onAccepted={onCommitted}
           onCounterBack={onCommitted}
+          onDecline={onRemove}
         />
       )}
 

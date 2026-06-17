@@ -189,14 +189,26 @@ export class VendorInterestsService {
 
     const { data } = await client
       .from('vendor_interests')
-      .select('status')
+      .select('status, events(id, title)')
       .eq('user_id', userId)
       .in('status', ['pending', 'quoted'])
 
-    const pending_vendor_response = (data ?? []).filter((i) => i.status === 'pending').length
-    const counter_received = (data ?? []).filter((i) => i.status === 'quoted').length
+    const rows = data ?? []
+    const pending_vendor_response = rows.filter((i) => i.status === 'pending').length
+    const counter_received = rows.filter((i) => i.status === 'quoted').length
 
-    return { pending_vendor_response, counter_received }
+    // Deduplicated list of events that have at least one counter-offer
+    const seen = new Set<string>()
+    const counter_events: { id: string; title: string }[] = []
+    for (const row of rows.filter((i) => i.status === 'quoted')) {
+      const event = row.events as any
+      if (event?.id && !seen.has(event.id)) {
+        seen.add(event.id)
+        counter_events.push({ id: event.id, title: event.title })
+      }
+    }
+
+    return { pending_vendor_response, counter_received, counter_events }
   }
 
   // User counters back after receiving a vendor counter-offer

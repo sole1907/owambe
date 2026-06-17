@@ -24,6 +24,7 @@ type ReviewableInterest = {
 type ActionSummary = {
   pending_vendor_response: number
   counter_received: number
+  counter_events: { id: string; title: string }[]
 }
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
@@ -74,14 +75,21 @@ export default function DashboardPage() {
 
       {/* Counter-offers awaiting response */}
       {actionSummary && actionSummary.counter_received > 0 && (
-        <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-xl flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-purple-900">
-              {actionSummary.counter_received} vendor {actionSummary.counter_received === 1 ? 'counter-offer' : 'counter-offers'} awaiting your response
-            </p>
-            <p className="text-xs text-purple-600 mt-0.5">Open the relevant event to accept or counter back</p>
+        <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-xl">
+          <p className="text-sm font-medium text-purple-900 mb-2">
+            {actionSummary.counter_received} vendor {actionSummary.counter_received === 1 ? 'counter-offer' : 'counter-offers'} awaiting your response
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {actionSummary.counter_events.map((event) => (
+              <Link
+                key={event.id}
+                href={`/events/${event.id}?tab=vendors`}
+                className="text-xs bg-purple-700 text-white px-3 py-1.5 rounded-lg hover:bg-purple-800 transition font-medium"
+              >
+                {event.title} →
+              </Link>
+            ))}
           </div>
-          <span className="text-2xl">💬</span>
         </div>
       )}
 
