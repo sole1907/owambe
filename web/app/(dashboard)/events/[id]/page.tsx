@@ -55,6 +55,7 @@ export default function EventPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   const handleSaveEvent = async (fields: Parameters<typeof api.patch>[1]) => {
     if (!event || !token) return
@@ -68,10 +69,12 @@ export default function EventPage() {
   const handleDelete = async () => {
     if (!event || !token) return
     setDeleting(true)
+    setDeleteError('')
     try {
       await api.delete(`/events/${event.id}`, token)
       router.push('/dashboard')
-    } finally {
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Could not delete event.')
       setDeleting(false)
     }
   }
@@ -115,8 +118,6 @@ export default function EventPage() {
   const eventDateLabel = event.event_date
     ? new Date(event.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
     : event.event_date_approximate || 'Date TBC'
-
-  const completedCount = event.checklist_items.filter((i) => i.is_completed).length
 
   return (
     <div>
@@ -226,14 +227,11 @@ export default function EventPage() {
           </button>
         ) : (
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 max-w-md">
-            {completedCount > 0 ? (
-              <p className="text-sm text-red-700 mb-3">
-                <span className="font-medium">You have {completedCount} completed checklist {completedCount === 1 ? 'item' : 'items'}.</span> Deleting this event will permanently remove all your progress, vendors, guests, and gifts. This cannot be undone.
-              </p>
-            ) : (
-              <p className="text-sm text-red-700 mb-3">
-                Are you sure you want to delete <span className="font-medium">{event.title}</span>? This will permanently remove the event and all associated data.
-              </p>
+            <p className="text-sm text-red-700 mb-3">
+              Are you sure you want to delete <span className="font-medium">{event.title}</span>? This will permanently remove the event and all associated data.
+            </p>
+            {deleteError && (
+              <p className="text-xs text-red-600 bg-red-100 rounded-lg px-3 py-2 mb-3">{deleteError}</p>
             )}
             <div className="flex gap-2">
               <button
@@ -244,7 +242,7 @@ export default function EventPage() {
                 {deleting ? 'Deleting...' : 'Yes, delete'}
               </button>
               <button
-                onClick={() => setDeleteConfirm(false)}
+                onClick={() => { setDeleteConfirm(false); setDeleteError('') }}
                 className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 transition"
               >
                 Cancel

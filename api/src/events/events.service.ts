@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common'
+import { Injectable, InternalServerErrorException, BadRequestException } from '@nestjs/common'
 import { SupabaseService } from '../supabase/supabase.service'
 import { PlanGeneratorService } from './plan-generator/plan-generator.service'
 import { GeneratePlanDto } from './dto/generate-plan.dto'
@@ -232,14 +232,16 @@ export class EventsService {
   async deleteEvent(eventId: string, userId: string) {
     const client = this.supabase.getClient()
 
-    const { data: completed } = await client
-      .from('checklist_items')
+    const { data: committed } = await client
+      .from('vendor_interests')
       .select('id')
       .eq('event_id', eventId)
-      .eq('is_completed', true)
+      .eq('status', 'committed')
       .limit(1)
 
-    const hasCompletedItems = completed && completed.length > 0
+    if (committed && committed.length > 0) {
+      throw new BadRequestException('Cannot delete an event that has confirmed vendor bookings. Cancel those bookings first.')
+    }
 
     const { error } = await client
       .from('events')
@@ -249,7 +251,7 @@ export class EventsService {
 
     if (error) throw new InternalServerErrorException(error.message)
 
-    return { success: true, hadProgress: hasCompletedItems }
+    return { success: true }
   }
 
   async updateBudgetBreakdown(eventId: string, budgetBreakdown: object[], _userId: string) {
