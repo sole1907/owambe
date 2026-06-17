@@ -168,6 +168,7 @@ function ShortlistCard({
   const vendor = interest.vendors
   const rank = RANK_LABEL[interest.preference_rank - 1]
   const [paying, setPaying] = useState(false)
+  if (!vendor) return null
   const [payError, setPayError] = useState('')
   const [accepting, setAccepting] = useState(false)
   const [acceptError, setAcceptError] = useState('')
@@ -388,7 +389,7 @@ function AddInterestModal({
   eventId: string
   categoryBudget: number | null
   existingInterests: Interest[]
-  onAdd: (interest: Interest) => void
+  onAdd: () => void
   onClose: () => void
 }) {
   const { token } = useAuth()
@@ -401,7 +402,7 @@ function AddInterestModal({
   const isMidpoint = suggestedOffer !== null && vendor.price_max !== null && vendor.price_max <= (categoryBudget ?? 0)
 
   const categoryInterests = existingInterests.filter(
-    (i) => i.vendors.vendor_categories?.id === vendor.vendor_categories?.id,
+    (i) => i.vendors?.vendor_categories?.id === vendor.vendor_categories?.id,
   )
   const takenRanks = new Set(categoryInterests.map((i) => i.preference_rank))
 
@@ -411,12 +412,12 @@ function AddInterestModal({
     setError('')
     try {
       const parsedOffer = offerAmount ? parseInt(offerAmount.replace(/[^0-9]/g, ''), 10) : undefined
-      const result = await api.post<Interest>(
+      await api.post<Interest>(
         `/events/${eventId}/vendor-interests`,
         { vendorId: vendor.id, preferenceRank: rank, offeredPrice: parsedOffer || undefined },
         token,
       )
-      onAdd(result)
+      onAdd()
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not add vendor.')
@@ -590,8 +591,8 @@ export default function VendorsSection({
     }
   }
 
-  const handleAdd = (newInterest: Interest) => {
-    setInterests((prev) => [...prev, newInterest])
+  const handleAdd = () => {
+    fetchInterests()
   }
 
   const handleCommitted = (interestId: string) => {
