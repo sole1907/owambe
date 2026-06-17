@@ -168,10 +168,11 @@ function ShortlistCard({
   const vendor = interest.vendors
   const rank = RANK_LABEL[interest.preference_rank - 1]
   const [paying, setPaying] = useState(false)
-  if (!vendor) return null
   const [payError, setPayError] = useState('')
   const [accepting, setAccepting] = useState(false)
   const [acceptError, setAcceptError] = useState('')
+
+  if (!vendor) return null
 
   // Agreed price = counter accepted by user, or offered price if vendor accepted directly
   const priceBasis = interest.agreed_price ?? interest.offered_price

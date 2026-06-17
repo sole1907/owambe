@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useAuth } from '@/context/auth'
 import { api } from '@/lib/api'
 import { capture } from '@/lib/posthog'
@@ -72,10 +73,11 @@ function PhotoCarousel({ photos }: { photos: string[] }) {
   return (
     <div className="relative mb-6">
       <div className="relative w-full h-64 rounded-2xl overflow-hidden bg-gray-100">
-        <img
+        <Image
           src={photos[current]}
           alt={`Photo ${current + 1}`}
-          className="w-full h-full object-cover"
+          fill
+          className="object-cover"
         />
         {photos.length > 1 && (
           <>
@@ -109,9 +111,9 @@ function PhotoCarousel({ photos }: { photos: string[] }) {
             <button
               key={i}
               onClick={() => setCurrent(i)}
-              className={`shrink-0 w-16 h-12 rounded-lg overflow-hidden border-2 transition ${i === current ? 'border-black' : 'border-transparent'}`}
+              className={`shrink-0 w-16 h-12 rounded-lg overflow-hidden border-2 transition relative ${i === current ? 'border-black' : 'border-transparent'}`}
             >
-              <img src={url} alt="" className="w-full h-full object-cover" />
+              <Image src={url} alt="" fill className="object-cover" />
             </button>
           ))}
         </div>
