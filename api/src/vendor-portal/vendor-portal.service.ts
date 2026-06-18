@@ -83,7 +83,7 @@ export class VendorPortalService {
       .lte('date', to)
 
     if (error) throw new InternalServerErrorException(error.message)
-    return { vendorId: vendor.id, year, month, blockedDates: data ?? [] }
+    return data ?? []
   }
 
   async blockDate(userId: string, date: string) {

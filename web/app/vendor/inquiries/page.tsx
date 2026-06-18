@@ -17,6 +17,8 @@ type Inquiry = {
   counter_price: number | null
   agreed_price: number | null
   is_final_offer: boolean
+  discount_requested: number | null
+  discount_offered: number | null
   events: {
     id: string
     title: string
@@ -113,13 +115,24 @@ function RespondModal({
         </p>
 
         {inquiry.offered_price && (
-          <div className={`mb-4 rounded-xl px-3 py-2.5 border ${inquiry.is_final_offer ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+          <div className={`mb-2 rounded-xl px-3 py-2.5 border ${inquiry.is_final_offer ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
             <p className={`text-xs ${inquiry.is_final_offer ? 'text-red-800' : 'text-green-800'}`}>
               Organiser&apos;s offer: <strong>{formatNaira(inquiry.offered_price)}</strong>
               {inquiry.events?.guest_count_estimate ? ` · ~${inquiry.events.guest_count_estimate.toLocaleString()} guests` : ''}
               {inquiry.is_final_offer && (
                 <span className="ml-2 font-semibold">— Final offer</span>
               )}
+            </p>
+          </div>
+        )}
+
+        {inquiry.discount_requested && inquiry.discount_requested > 0 && (
+          <div className="mb-4 rounded-xl px-3 py-2.5 border bg-amber-50 border-amber-200">
+            <p className="text-xs text-amber-900">
+              <span className="font-semibold">Discount requested:</span>{' '}
+              Organiser is asking for a{' '}
+              <strong>{formatNaira(inquiry.discount_requested)}</strong> reduction off your price.
+              You can factor this into your counter-offer or decline the discount.
             </p>
           </div>
         )}
@@ -397,6 +410,11 @@ function InquiryCard({
               </span>
             )}
           </div>
+        )}
+        {inquiry.discount_requested && inquiry.discount_requested > 0 && (
+          <p className="mt-1.5 text-amber-700 font-medium">
+            Discount requested: {formatNaira(inquiry.discount_requested)} off
+          </p>
         )}
       </div>
 

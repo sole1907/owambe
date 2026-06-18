@@ -422,6 +422,7 @@ export class VendorInterestsService {
         id, preference_rank, status, event_date, expires_at,
         vendor_response_at, vendor_notes, created_at,
         offered_price, counter_price, agreed_price, is_final_offer,
+        discount_requested, discount_offered,
         events (id, title, city, guest_count_estimate),
         users (full_name, email, phone)
       `)
