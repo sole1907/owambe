@@ -1,29 +1,43 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/context/auth'
+import { api } from '@/lib/api'
 
-const NAV = [
+const BASE_NAV = [
   { href: '/vendor/dashboard', label: 'Dashboard' },
   { href: '/vendor/inquiries', label: 'Inquiries' },
-  { href: '/vendor/menu', label: 'Menu' },
-  { href: '/vendor/decorator', label: 'Decorator' },
   { href: '/vendor/profile', label: 'My Profile' },
   { href: '/vendor/availability', label: 'Availability' },
 ]
 
 export default function VendorLayout({ children }: { children: React.ReactNode }) {
-  const { user, isLoading, signOut } = useAuth()
+  const { user, token, isLoading, signOut } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
+  const [categorySlug, setCategorySlug] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isLoading && (!user || user.role !== 'vendor')) {
       router.replace('/login')
     }
   }, [user, isLoading, router])
+
+  useEffect(() => {
+    if (!token) return
+    api
+      .get<{ vendor_categories: { slug: string } | null }>('/vendor-portal/profile', token)
+      .then((profile) => setCategorySlug(profile.vendor_categories?.slug ?? null))
+      .catch(() => {})
+  }, [token])
+
+  const nav = [
+    ...BASE_NAV,
+    ...(categorySlug === 'caterers' ? [{ href: '/vendor/menu', label: 'Menu' }] : []),
+    ...(categorySlug === 'decorators' ? [{ href: '/vendor/decorator', label: 'Decorator' }] : []),
+  ]
 
   if (isLoading || !user) return null
 
@@ -36,7 +50,7 @@ export default function VendorLayout({ children }: { children: React.ReactNode }
           <p className="text-sm font-semibold text-gray-900 truncate">{user.full_name || user.email}</p>
         </div>
         <nav className="flex flex-col gap-1 flex-1">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <Link
               key={item.href}
               href={item.href}
