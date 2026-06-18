@@ -191,7 +191,9 @@ function VendorCard({
 
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-gray-800">
-            {vendor.price_min && vendor.price_max
+            {isCaterer
+              ? 'Price on menu'
+              : vendor.price_min && vendor.price_max
               ? `${formatNaira(vendor.price_min)} – ${formatNaira(vendor.price_max)}`
               : vendor.price_min
               ? `From ${formatNaira(vendor.price_min)}`
@@ -675,7 +677,7 @@ function AddInterestModal({
         </h3>
         <p className="text-sm text-gray-500 mb-4">
           {vendor.name} · {vendor.vendor_categories?.name}
-          {vendor.price_min && vendor.price_max && !hasCatererMenu && (
+          {vendor.price_min && vendor.price_max && !isCaterer && (
             <span className="text-gray-400"> · {formatNaira(vendor.price_min)}–{formatNaira(vendor.price_max)}</span>
           )}
         </p>
@@ -1007,15 +1009,19 @@ export default function VendorsSection({
     activeCategory === 'caterers' ||
     (activeCategory === '' && filteredVendors.every((v) => v.vendor_categories?.slug === 'caterers'))
 
-  const sortedFiltered = [...filteredVendors].sort((a, b) => {
-    if (selectedDishes.size === 0) return 0
-    const aIsCaterer = a.vendor_categories?.slug === 'caterers'
-    const bIsCaterer = b.vendor_categories?.slug === 'caterers'
-    if (!aIsCaterer && !bIsCaterer) return 0
-    const aScore = aIsCaterer ? (a.menu_item_names ?? []).filter((n) => selectedDishes.has(n)).length : 0
-    const bScore = bIsCaterer ? (b.menu_item_names ?? []).filter((n) => selectedDishes.has(n)).length : 0
-    return bScore - aScore
-  })
+  const sortedFiltered = [...filteredVendors]
+    .filter((v) => {
+      if (selectedDishes.size === 0) return true
+      const isCaterer = v.vendor_categories?.slug === 'caterers'
+      if (!isCaterer) return true
+      return (v.menu_item_names ?? []).some((n) => selectedDishes.has(n))
+    })
+    .sort((a, b) => {
+      if (selectedDishes.size === 0) return 0
+      const aScore = (a.menu_item_names ?? []).filter((n) => selectedDishes.has(n)).length
+      const bScore = (b.menu_item_names ?? []).filter((n) => selectedDishes.has(n)).length
+      return bScore - aScore
+    })
 
   const withinBudget = sortedFiltered.filter((v) => v.is_within_budget)
   const aboveBudget = sortedFiltered.filter((v) => !v.is_within_budget)
@@ -1137,7 +1143,7 @@ export default function VendorsSection({
               ))}
             </div>
 
-            {aboveBudget.length > 0 && (
+            {aboveBudget.length > 0 && !isCatererView && (
               <>
                 <div className="flex items-center gap-3 my-5">
                   <div className="flex-1 border-t border-gray-200" />

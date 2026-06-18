@@ -31,6 +31,7 @@ type Profile = {
     partial_refund_days: number
     partial_refund_percentage: number
   }
+  vendor_categories: { slug: string } | null
 }
 
 export default function VendorProfilePage() {
@@ -109,6 +110,8 @@ export default function VendorProfilePage() {
 
   if (!profile) return <p className="text-gray-400 text-sm">Loading...</p>
 
+  const isCaterer = profile.vendor_categories?.slug === 'caterers'
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-1">My Profile</h1>
@@ -160,27 +163,29 @@ export default function VendorProfilePage() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Display price range</label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  placeholder="Min"
-                  min={0}
-                  value={form.price_min ?? ''}
-                  onChange={(e) => setForm({ ...form, price_min: e.target.value ? parseInt(e.target.value) : null })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                />
-                <input
-                  type="number"
-                  placeholder="Max"
-                  min={0}
-                  value={form.price_max ?? ''}
-                  onChange={(e) => setForm({ ...form, price_max: e.target.value ? parseInt(e.target.value) : null })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                />
+            {!isCaterer && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Display price range</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    placeholder="Min"
+                    min={0}
+                    value={form.price_min ?? ''}
+                    onChange={(e) => setForm({ ...form, price_min: e.target.value ? parseInt(e.target.value) : null })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Max"
+                    min={0}
+                    value={form.price_max ?? ''}
+                    onChange={(e) => setForm({ ...form, price_max: e.target.value ? parseInt(e.target.value) : null })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="flex items-center gap-3 mb-4">

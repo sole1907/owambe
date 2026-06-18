@@ -301,9 +301,9 @@ export default function VendorDetailPage() {
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{cat}</p>
                 <div className="space-y-1">
                   {catItems.map((item) => {
-                    const sorted = [...item.caterer_menu_pricing_tiers].sort((a, b) => a.min_servings - b.min_servings)
-                    const minPrice = sorted[0]?.price_per_serving
-                    const maxPrice = sorted[sorted.length - 1]?.price_per_serving
+                    const prices = item.caterer_menu_pricing_tiers.map((t) => t.price_per_serving).sort((a, b) => a - b)
+                    const minPrice = prices[0]
+                    const maxPrice = prices[prices.length - 1]
                     const priceRange = minPrice && maxPrice && minPrice !== maxPrice
                       ? `${formatNaira(minPrice)}–${formatNaira(maxPrice)}/head`
                       : minPrice

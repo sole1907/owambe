@@ -218,7 +218,11 @@ export class VendorsService {
       const fallbackBudget = event.budget_estimate ?? null
       const effectiveBudget = categoryBudget ?? fallbackBudget
       const vendorPrice = v.price_min ?? null
-      const fits = !effectiveBudget || !vendorPrice || vendorPrice <= effectiveBudget
+      const fits =
+        categorySlug === 'caterers' || // caterer price depends on menu selection, never filter out
+        !effectiveBudget ||
+        !vendorPrice ||
+        vendorPrice <= effectiveBudget
 
       // Flatten caterer menu item names for menu-first discovery
       const menuItemNames: string[] = Array.isArray((v as any).caterer_menu_items)
