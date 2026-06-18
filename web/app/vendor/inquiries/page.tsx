@@ -107,23 +107,26 @@ function RespondModal({
           {inquiry.events?.title}{inquiry.event_date ? ` · ${new Date(inquiry.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}
         </p>
         <p className="text-xs text-gray-400 mb-4">
-          Accept the offered price, suggest a counter, or decline. The organiser can accept or counter back — you can keep negotiating until you agree.
+          {inquiry.is_final_offer
+            ? 'This is a final offer — you can accept or decline, but cannot counter.'
+            : 'Accept the offered price, suggest a counter, or decline. The organiser can accept or counter back — you can keep negotiating until you agree.'}
         </p>
 
-        {/* Show offered price to vendor */}
         {inquiry.offered_price && (
           <div className={`mb-4 rounded-xl px-3 py-2.5 border ${inquiry.is_final_offer ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
             <p className={`text-xs ${inquiry.is_final_offer ? 'text-red-800' : 'text-green-800'}`}>
               Organiser&apos;s offer: <strong>{formatNaira(inquiry.offered_price)}</strong>
               {inquiry.events?.guest_count_estimate ? ` · ~${inquiry.events.guest_count_estimate.toLocaleString()} guests` : ''}
               {inquiry.is_final_offer && (
-                <span className="ml-2 font-semibold">— Final offer, no counter allowed</span>
+                <span className="ml-2 font-semibold">— Final offer</span>
               )}
             </p>
           </div>
         )}
 
-        <p className="text-xs font-medium text-gray-600 mb-2">Are you available on this date?</p>
+        <p className="text-xs font-medium text-gray-600 mb-2">
+          {inquiry.is_final_offer ? 'Do you accept this offer?' : 'Are you available on this date?'}
+        </p>
         <div className="flex gap-2 mb-4">
           <button
             onClick={() => setAvailable(true)}
@@ -133,7 +136,7 @@ function RespondModal({
                 : 'border-gray-200 text-gray-600 hover:border-green-300'
             }`}
           >
-            Yes, available
+            {inquiry.is_final_offer ? 'Accept offer' : 'Yes, available'}
           </button>
           <button
             onClick={() => setAvailable(false)}
@@ -143,7 +146,7 @@ function RespondModal({
                 : 'border-gray-200 text-gray-600 hover:border-red-300'
             }`}
           >
-            Not available
+            {inquiry.is_final_offer ? 'Decline offer' : 'Not available'}
           </button>
         </div>
 
@@ -194,7 +197,13 @@ function RespondModal({
           </label>
           <textarea
             rows={2}
-            placeholder={available === false ? 'e.g. I am fully booked on that date.' : 'e.g. Looking forward to it! Deposit secures the date.'}
+            placeholder={
+              available === false
+                ? inquiry.is_final_offer
+                  ? 'e.g. The budget doesn\'t work for us at this scale.'
+                  : 'e.g. I am fully booked on that date.'
+                : 'e.g. Looking forward to it! Deposit secures the date.'
+            }
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
