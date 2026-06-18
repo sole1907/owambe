@@ -51,6 +51,21 @@ type Vendor = {
   vendor_categories: { name: string; slug: string }
 }
 
+type MenuPricingTier = {
+  id: string
+  min_servings: number
+  max_servings: number | null
+  price_per_serving: number
+}
+
+type MenuItemWithTiers = {
+  id: string
+  name: string
+  category: string
+  description: string | null
+  caterer_menu_pricing_tiers: MenuPricingTier[]
+}
+
 function formatNaira(value: number) {
   return new Intl.NumberFormat('en-NG', {
     style: 'currency',
@@ -170,6 +185,7 @@ export default function VendorDetailPage() {
   const { token } = useAuth()
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
+  const [menuItems, setMenuItems] = useState<MenuItemWithTiers[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -177,9 +193,11 @@ export default function VendorDetailPage() {
     Promise.all([
       api.get<Vendor>(`/vendors/${slug}`, token),
       api.get<Review[]>(`/vendors/${slug}/reviews`, token).catch(() => []),
-    ]).then(([v, r]) => {
+      api.get<MenuItemWithTiers[]>(`/vendors/${slug}/menu`, token).catch(() => []),
+    ]).then(([v, r, m]) => {
       setVendor(v)
       setReviews(r)
+      setMenuItems(m)
     }).finally(() => setLoading(false))
   }, [slug, token])
 
@@ -207,6 +225,13 @@ export default function VendorDetailPage() {
     : null
 
   const isVenue = vendor.vendor_categories?.slug === 'venues'
+  const isCaterer = vendor.vendor_categories?.slug === 'caterers'
+
+  const menuByCategory = menuItems.reduce<Record<string, MenuItemWithTiers[]>>((acc, item) => {
+    if (!acc[item.category]) acc[item.category] = []
+    acc[item.category].push(item)
+    return acc
+  }, {})
 
   return (
     <div className="max-w-2xl">
@@ -263,6 +288,40 @@ export default function VendorDetailPage() {
                 : 'Price on request'}
             </p>
           )}
+        </div>
+      )}
+
+      {/* Menu (caterers only) */}
+      {isCaterer && menuItems.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3">Menu</h2>
+          <div className="bg-gray-50 rounded-xl p-4 space-y-4">
+            {Object.entries(menuByCategory).map(([cat, catItems]) => (
+              <div key={cat}>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{cat}</p>
+                <div className="space-y-1">
+                  {catItems.map((item) => {
+                    const sorted = [...item.caterer_menu_pricing_tiers].sort((a, b) => a.min_servings - b.min_servings)
+                    const minPrice = sorted[0]?.price_per_serving
+                    const maxPrice = sorted[sorted.length - 1]?.price_per_serving
+                    const priceRange = minPrice && maxPrice && minPrice !== maxPrice
+                      ? `${formatNaira(minPrice)}–${formatNaira(maxPrice)}/head`
+                      : minPrice
+                      ? `${formatNaira(minPrice)}/head`
+                      : null
+                    return (
+                      <div key={item.id} className="flex items-center justify-between gap-2">
+                        <span className="text-sm text-gray-700">{item.name}</span>
+                        {priceRange && (
+                          <span className="text-xs text-gray-500 shrink-0">{priceRange}</span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

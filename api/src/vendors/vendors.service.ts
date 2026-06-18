@@ -65,6 +65,67 @@ export class VendorsService {
     return data
   }
 
+  async getMenuCatalog(city: string) {
+    const client = this.supabase.getClient()
+
+    const { data: catCategory } = await client
+      .from('vendor_categories')
+      .select('id')
+      .eq('slug', 'caterers')
+      .single()
+
+    if (!catCategory) return []
+
+    const { data: vendorIds } = await client
+      .from('vendors')
+      .select('id')
+      .eq('category_id', catCategory.id)
+      .eq('is_active', true)
+      .ilike('city', `%${city}%`)
+
+    if (!vendorIds?.length) return []
+
+    const ids = vendorIds.map((v: any) => v.id)
+    const { data, error } = await client
+      .from('caterer_menu_items')
+      .select('name, category')
+      .in('vendor_id', ids)
+      .eq('is_active', true)
+      .order('category')
+      .order('name')
+
+    if (error || !data) return []
+
+    // Deduplicate by name within each category
+    const grouped = new Map<string, Set<string>>()
+    for (const item of data) {
+      if (!grouped.has(item.category)) grouped.set(item.category, new Set())
+      grouped.get(item.category)!.add(item.name)
+    }
+
+    return Array.from(grouped.entries()).map(([category, names]) => ({
+      category,
+      items: Array.from(names).sort(),
+    }))
+  }
+
+  async getVendorMenu(slug: string) {
+    const client = this.supabase.getClient()
+    const { data: vendor } = await client.from('vendors').select('id').eq('slug', slug).single()
+    if (!vendor) return []
+
+    const { data, error } = await client
+      .from('caterer_menu_items')
+      .select('id, name, category, description, sort_order, caterer_menu_pricing_tiers (id, min_servings, max_servings, price_per_serving)')
+      .eq('vendor_id', vendor.id)
+      .eq('is_active', true)
+      .order('category')
+      .order('sort_order')
+
+    if (error) return []
+    return data ?? []
+  }
+
   async getVendor(slug: string) {
     const client = this.supabase.getClient()
 
@@ -124,7 +185,8 @@ export class VendorsService {
         `id, name, slug, description, city, location,
         price_min, price_max, service_fee, rating, review_count, capacity,
         photos, videos, whatsapp, phone, instagram, is_featured,
-        vendor_categories (id, name, slug)`,
+        vendor_categories (id, name, slug),
+        caterer_menu_items (name)`,
       )
       .eq('is_active', true)
       .order('is_featured', { ascending: false })
@@ -157,10 +219,17 @@ export class VendorsService {
       const effectiveBudget = categoryBudget ?? fallbackBudget
       const vendorPrice = v.price_min ?? null
       const fits = !effectiveBudget || !vendorPrice || vendorPrice <= effectiveBudget
+
+      // Flatten caterer menu item names for menu-first discovery
+      const menuItemNames: string[] = Array.isArray((v as any).caterer_menu_items)
+        ? (v as any).caterer_menu_items.map((m: any) => m.name)
+        : []
+
+      const enriched = { ...v, is_within_budget: fits, menu_item_names: menuItemNames }
       if (fits) {
-        withinBudget.push({ ...v, is_within_budget: true })
+        withinBudget.push(enriched)
       } else {
-        aboveBudget.push({ ...v, is_within_budget: false })
+        aboveBudget.push(enriched)
       }
     }
 

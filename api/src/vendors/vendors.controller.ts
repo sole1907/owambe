@@ -30,6 +30,16 @@ export class VendorsController {
     })
   }
 
+  @Get('menu-catalog')
+  getMenuCatalog(@Query('city') city: string) {
+    return this.vendors.getMenuCatalog(city || '')
+  }
+
+  @Get(':slug/menu')
+  getVendorMenu(@Param('slug') slug: string) {
+    return this.vendors.getVendorMenu(slug)
+  }
+
   @Get(':slug')
   getVendor(@Param('slug') slug: string) {
     return this.vendors.getVendor(slug)

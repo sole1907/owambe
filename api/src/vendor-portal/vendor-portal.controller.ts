@@ -50,4 +50,26 @@ export class VendorPortalController {
   getSettings() {
     return this.portal.getSettings()
   }
+
+  // ── Caterer menu management ───────────────────────────────────────────────
+
+  @Get('menu')
+  getMenu(@CurrentUser() user: any) {
+    return this.portal.getMenu(user.id)
+  }
+
+  @Post('menu/items')
+  addMenuItem(@CurrentUser() user: any, @Body() body: any) {
+    return this.portal.addMenuItem(user.id, body)
+  }
+
+  @Patch('menu/items/:id')
+  updateMenuItem(@CurrentUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.portal.updateMenuItem(user.id, id, body)
+  }
+
+  @Delete('menu/items/:id')
+  deleteMenuItem(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.portal.deleteMenuItem(user.id, id)
+  }
 }

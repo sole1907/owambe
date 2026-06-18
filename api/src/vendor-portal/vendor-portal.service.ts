@@ -139,6 +139,83 @@ export class VendorPortalService {
     return this.getPlatformSettings(client)
   }
 
+  // ── Caterer menu management ───────────────────────────────────────────────
+
+  async getMenu(userId: string) {
+    const client = this.supabase.getAdminClient()
+    const vendor = await this.getVendorByUserId(userId)
+    const { data, error } = await client
+      .from('caterer_menu_items')
+      .select('*, caterer_menu_pricing_tiers (id, min_servings, max_servings, price_per_serving)')
+      .eq('vendor_id', vendor.id)
+      .eq('is_active', true)
+      .order('category')
+      .order('sort_order')
+    if (error) throw new InternalServerErrorException(error.message)
+    return data ?? []
+  }
+
+  async addMenuItem(userId: string, dto: { name: string; category: string; description?: string; tiers: { minServings: number; maxServings?: number; pricePerServing: number }[] }) {
+    const client = this.supabase.getAdminClient()
+    const vendor = await this.getVendorByUserId(userId)
+    const { data: item, error } = await client
+      .from('caterer_menu_items')
+      .insert({ vendor_id: vendor.id, name: dto.name, category: dto.category, description: dto.description ?? null })
+      .select()
+      .single()
+    if (error || !item) throw new InternalServerErrorException(error?.message ?? 'Failed to create item')
+
+    if (dto.tiers?.length) {
+      const tiers = dto.tiers.map((t) => ({
+        menu_item_id: item.id,
+        min_servings: t.minServings,
+        max_servings: t.maxServings ?? null,
+        price_per_serving: t.pricePerServing,
+      }))
+      const { error: te } = await client.from('caterer_menu_pricing_tiers').insert(tiers)
+      if (te) throw new InternalServerErrorException(te.message)
+    }
+    return item
+  }
+
+  async updateMenuItem(userId: string, itemId: string, dto: { name?: string; category?: string; description?: string; tiers?: { minServings: number; maxServings?: number; pricePerServing: number }[] }) {
+    const client = this.supabase.getAdminClient()
+    const vendor = await this.getVendorByUserId(userId)
+
+    const updates: Record<string, unknown> = {}
+    if (dto.name !== undefined) updates.name = dto.name
+    if (dto.category !== undefined) updates.category = dto.category
+    if (dto.description !== undefined) updates.description = dto.description
+
+    if (Object.keys(updates).length) {
+      const { error } = await client.from('caterer_menu_items').update(updates).eq('id', itemId).eq('vendor_id', vendor.id)
+      if (error) throw new InternalServerErrorException(error.message)
+    }
+
+    if (dto.tiers !== undefined) {
+      await client.from('caterer_menu_pricing_tiers').delete().eq('menu_item_id', itemId)
+      if (dto.tiers.length) {
+        const tiers = dto.tiers.map((t) => ({
+          menu_item_id: itemId,
+          min_servings: t.minServings,
+          max_servings: t.maxServings ?? null,
+          price_per_serving: t.pricePerServing,
+        }))
+        const { error: te } = await client.from('caterer_menu_pricing_tiers').insert(tiers)
+        if (te) throw new InternalServerErrorException(te.message)
+      }
+    }
+    return { id: itemId }
+  }
+
+  async deleteMenuItem(userId: string, itemId: string) {
+    const client = this.supabase.getAdminClient()
+    const vendor = await this.getVendorByUserId(userId)
+    const { error } = await client.from('caterer_menu_items').update({ is_active: false }).eq('id', itemId).eq('vendor_id', vendor.id)
+    if (error) throw new InternalServerErrorException(error.message)
+    return { id: itemId }
+  }
+
   private async getPlatformSettings(client: ReturnType<SupabaseService['getAdminClient']>) {
     const { data } = await client.from('platform_settings').select('key, value')
     const settings: Record<string, unknown> = {}

@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common'
 import { SupabaseService } from '../supabase/supabase.service'
 import { EmailService } from '../email/email.service'
-import { CreateInterestDto } from './dto/create-interest.dto'
+import { CreateInterestDto, MenuSelectionDto } from './dto/create-interest.dto'
 import { RespondInquiryDto } from './dto/respond-inquiry.dto'
 
 @Injectable()
@@ -123,6 +123,36 @@ export class VendorInterestsService {
     const expiresAt = new Date()
     expiresAt.setHours(expiresAt.getHours() + 48)
 
+    // For caterers: compute offered_price from menu selections
+    let computedOfferedPrice = dto.offeredPrice ?? null
+    let menuLineItems: { item: any; servings: number; pricePerServing: number; subtotal: number }[] = []
+
+    if (dto.menuSelections?.length && v.vendor_categories?.slug === 'caterers') {
+      const itemIds = dto.menuSelections.map((s: MenuSelectionDto) => s.menuItemId)
+      const { data: menuItems } = await client
+        .from('caterer_menu_items')
+        .select('id, name, category, caterer_menu_pricing_tiers (min_servings, max_servings, price_per_serving)')
+        .in('id', itemIds)
+        .eq('vendor_id', dto.vendorId)
+        .eq('is_active', true)
+
+      let total = 0
+      for (const sel of dto.menuSelections) {
+        const item = (menuItems ?? []).find((m: any) => m.id === sel.menuItemId)
+        if (!item) continue
+        const tiers: any[] = item.caterer_menu_pricing_tiers ?? []
+        const tier = tiers
+          .sort((a: any, b: any) => b.min_servings - a.min_servings)
+          .find((t: any) => sel.servings >= t.min_servings && (t.max_servings === null || sel.servings <= t.max_servings))
+          ?? tiers.sort((a: any, b: any) => a.min_servings - b.min_servings)[0]
+        if (!tier) continue
+        const subtotal = sel.servings * tier.price_per_serving
+        total += subtotal
+        menuLineItems.push({ item, servings: sel.servings, pricePerServing: tier.price_per_serving, subtotal })
+      }
+      if (total > 0) computedOfferedPrice = total
+    }
+
     const { data: interest, error: insertError } = await client
       .from('vendor_interests')
       .insert({
@@ -134,13 +164,28 @@ export class VendorInterestsService {
         status: initialStatus,
         event_date: eventDate,
         expires_at: expiresAt.toISOString(),
-        offered_price: dto.offeredPrice ?? null,
+        offered_price: computedOfferedPrice,
         is_final_offer: dto.isFinalOffer ?? false,
       })
       .select()
       .single()
 
     if (insertError) throw new InternalServerErrorException(insertError.message)
+
+    // Insert menu selections snapshot
+    if (menuLineItems.length && interest) {
+      await client.from('vendor_interest_menu_selections').insert(
+        menuLineItems.map(({ item, servings, pricePerServing, subtotal }) => ({
+          interest_id: interest.id,
+          menu_item_id: item.id,
+          menu_item_name: item.name,
+          menu_item_category: item.category,
+          servings,
+          price_per_serving: pricePerServing,
+          subtotal,
+        })),
+      )
+    }
 
     if (initialStatus === 'pending' && v.email) {
       const offeredPriceFormatted = dto.offeredPrice

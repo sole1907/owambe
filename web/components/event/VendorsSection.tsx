@@ -21,6 +21,7 @@ type Vendor = {
   capacity: number | null
   is_within_budget: boolean
   vendor_categories: Category
+  menu_item_names: string[]
 }
 
 type Interest = {
@@ -41,6 +42,21 @@ type Interest = {
   }
 }
 
+type MenuCatalogCategory = { category: string; items: string[] }
+
+type MenuItemWithTiers = {
+  id: string
+  name: string
+  category: string
+  description: string | null
+  caterer_menu_pricing_tiers: {
+    id: string
+    min_servings: number
+    max_servings: number | null
+    price_per_serving: number
+  }[]
+}
+
 function formatNaira(value: number) {
   if (value >= 1_000_000) {
     const str = (value / 1_000_000).toFixed(2).replace(/\.?0+$/, '')
@@ -51,6 +67,22 @@ function formatNaira(value: number) {
     return `₦${str}k`
   }
   return `₦${value.toLocaleString()}`
+}
+
+function getPricePerServing(
+  tiers: MenuItemWithTiers['caterer_menu_pricing_tiers'],
+  servings: number,
+): number {
+  const sorted = [...tiers].sort((a, b) => b.min_servings - a.min_servings)
+  return (
+    sorted.find(
+      (t) =>
+        servings >= t.min_servings &&
+        (t.max_servings === null || servings <= t.max_servings),
+    )?.price_per_serving ??
+    sorted[sorted.length - 1]?.price_per_serving ??
+    0
+  )
 }
 
 const RANK_LABEL = ['A', 'B', 'C']
@@ -88,13 +120,31 @@ function VendorCard({
   alreadyShortlisted,
   slotsUsed,
   onShortlist,
+  selectedDishes,
 }: {
   vendor: Vendor
   alreadyShortlisted: boolean
   slotsUsed: number
   onShortlist: () => void
+  selectedDishes: Set<string>
 }) {
   const allSlotsFull = slotsUsed >= 3
+  const isCaterer = vendor.vendor_categories?.slug === 'caterers'
+  const menuNames = vendor.menu_item_names ?? []
+
+  const matchCount =
+    isCaterer && selectedDishes.size > 0
+      ? menuNames.filter((n) => selectedDishes.has(n)).length
+      : 0
+  const showBadge = isCaterer && selectedDishes.size > 0 && menuNames.length > 0
+  const matchRatio = menuNames.length > 0 ? matchCount / menuNames.length : 0
+  const badgeColor =
+    matchRatio >= 0.8
+      ? 'bg-green-100 text-green-700'
+      : matchRatio >= 0.4
+      ? 'bg-amber-100 text-amber-700'
+      : 'bg-red-100 text-red-700'
+
   return (
     <div
       className={`bg-white border rounded-2xl overflow-hidden transition ${
@@ -119,7 +169,14 @@ function VendorCard({
           >
             {vendor.name}
           </Link>
-          <span className="text-xs text-gray-400 shrink-0">★ {vendor.rating}</span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {showBadge && (
+              <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${badgeColor}`}>
+                {matchCount}/{menuNames.length} dishes
+              </span>
+            )}
+            <span className="text-xs text-gray-400">★ {vendor.rating}</span>
+          </div>
         </div>
 
         <p className="text-xs text-gray-500 mb-1">{vendor.vendor_categories?.name} · {vendor.city}</p>
@@ -320,7 +377,6 @@ function ShortlistCard({
 
   if (!vendor) return null
 
-  // Agreed price = counter accepted by user, or offered price if vendor accepted directly
   const priceBasis = interest.agreed_price ?? interest.offered_price
   const commitmentFee = priceBasis && vendor.commitment_fee_percentage
     ? Math.round((priceBasis * vendor.commitment_fee_percentage) / 100)
@@ -337,7 +393,6 @@ function ShortlistCard({
         amount_kobo: number
       }>('/payments/initialize', { interestId: interest.id }, token)
 
-      // Load Paystack inline JS if not already loaded
       if (!window.PaystackPop) {
         await new Promise<void>((resolve, reject) => {
           const script = document.createElement('script')
@@ -351,7 +406,6 @@ function ShortlistCard({
       const handler = window.PaystackPop.resumeTransaction(res.access_code)
       handler.openIframe()
 
-      // Poll for verification after popup opens (webhook handles the backend, but we also verify here)
       const reference = res.reference
       const poll = setInterval(async () => {
         try {
@@ -370,7 +424,6 @@ function ShortlistCard({
         }
       }, 3000)
 
-      // Stop polling after 10 minutes regardless
       setTimeout(() => {
         clearInterval(poll)
         setPaying(false)
@@ -411,7 +464,6 @@ function ShortlistCard({
           </div>
           <p className="text-xs text-gray-400 mt-0.5">{vendor.city}</p>
 
-          {/* Pricing summary */}
           <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
             {interest.offered_price && (
               <p className="text-xs text-gray-500">
@@ -446,7 +498,6 @@ function ShortlistCard({
         )}
       </div>
 
-      {/* Counter-offer: vendor countered, user can accept or counter back */}
       {interest.status === 'quoted' && interest.counter_price && (
         <CounterNegotiationRow
           interest={interest}
@@ -480,9 +531,6 @@ function ShortlistCard({
   )
 }
 
-// Compute a smart suggested offer:
-// - If vendor's max is within budget: offer the midpoint (save the user money)
-// - Otherwise: offer the full budget
 function computeSuggestedOffer(
   priceMin: number | null,
   priceMax: number | null,
@@ -493,7 +541,6 @@ function computeSuggestedOffer(
   const min = priceMin ?? 0
   if (!max) return categoryBudget
   if (max <= categoryBudget) {
-    // Vendor's full range fits within budget — start at midpoint to save money
     return Math.round(((min + max) / 2) / 10000) * 10000
   }
   return categoryBudget
@@ -504,6 +551,7 @@ function AddInterestModal({
   eventId,
   categoryBudget,
   existingInterests,
+  guestCount,
   onAdd,
   onClose,
 }: {
@@ -511,6 +559,7 @@ function AddInterestModal({
   eventId: string
   categoryBudget: number | null
   existingInterests: Interest[]
+  guestCount?: number | null
   onAdd: () => void
   onClose: () => void
 }) {
@@ -520,9 +569,41 @@ function AddInterestModal({
   const [error, setError] = useState('')
   const [isFinalOffer, setIsFinalOffer] = useState(false)
 
+  const isCaterer = vendor.vendor_categories?.slug === 'caterers'
+  const hasCatererMenu = isCaterer && (vendor.menu_item_names?.length ?? 0) > 0
+
   const suggestedOffer = computeSuggestedOffer(vendor.price_min, vendor.price_max, categoryBudget)
   const [offerAmount, setOfferAmount] = useState<string>(suggestedOffer ? String(suggestedOffer) : '')
   const isMidpoint = suggestedOffer !== null && vendor.price_max !== null && vendor.price_max <= (categoryBudget ?? 0)
+
+  const [vendorMenu, setVendorMenu] = useState<MenuItemWithTiers[]>([])
+  const [menuLoading, setMenuLoading] = useState(false)
+  const defaultServings = guestCount ?? 100
+  const [menuSelections, setMenuSelections] = useState<Record<string, { checked: boolean; servings: number }>>({})
+
+  useEffect(() => {
+    if (!hasCatererMenu || !token) return
+    setMenuLoading(true)
+    api
+      .get<MenuItemWithTiers[]>(`/vendors/${vendor.slug}/menu`, token)
+      .then((items) => {
+        setVendorMenu(items)
+        const initial: Record<string, { checked: boolean; servings: number }> = {}
+        items.forEach((item) => {
+          initial[item.id] = { checked: false, servings: defaultServings }
+        })
+        setMenuSelections(initial)
+      })
+      .catch(() => {})
+      .finally(() => setMenuLoading(false))
+  }, [hasCatererMenu, token, vendor.slug, defaultServings])
+
+  const menuTotal = vendorMenu.reduce((sum, item) => {
+    const sel = menuSelections[item.id]
+    if (!sel?.checked) return sum
+    const price = getPricePerServing(item.caterer_menu_pricing_tiers, sel.servings)
+    return sum + price * sel.servings
+  }, 0)
 
   const categoryInterests = existingInterests.filter(
     (i) => i.vendors?.vendor_categories?.id === vendor.vendor_categories?.id,
@@ -534,17 +615,37 @@ function AddInterestModal({
     setLoading(true)
     setError('')
     try {
-      const parsedOffer = offerAmount ? parseInt(offerAmount.replace(/[^0-9]/g, ''), 10) : undefined
-      await api.post<Interest>(
-        `/events/${eventId}/vendor-interests`,
-        {
-          vendorId: vendor.id,
-          preferenceRank: rank,
-          offeredPrice: parsedOffer || undefined,
-          isFinalOffer: isFinalOffer || undefined,
-        },
-        token,
-      )
+      if (hasCatererMenu && vendorMenu.length > 0) {
+        const selections = vendorMenu
+          .filter((item) => menuSelections[item.id]?.checked)
+          .map((item) => ({
+            menuItemId: item.id,
+            servings: menuSelections[item.id].servings,
+          }))
+        await api.post<Interest>(
+          `/events/${eventId}/vendor-interests`,
+          {
+            vendorId: vendor.id,
+            preferenceRank: rank,
+            offeredPrice: menuTotal || undefined,
+            menuSelections: selections.length > 0 ? selections : undefined,
+            isFinalOffer: isFinalOffer || undefined,
+          },
+          token,
+        )
+      } else {
+        const parsedOffer = offerAmount ? parseInt(offerAmount.replace(/[^0-9]/g, ''), 10) : undefined
+        await api.post<Interest>(
+          `/events/${eventId}/vendor-interests`,
+          {
+            vendorId: vendor.id,
+            preferenceRank: rank,
+            offeredPrice: parsedOffer || undefined,
+            isFinalOffer: isFinalOffer || undefined,
+          },
+          token,
+        )
+      }
       onAdd()
       onClose()
     } catch (err) {
@@ -554,59 +655,143 @@ function AddInterestModal({
     }
   }
 
+  const menuByCategory = vendorMenu.reduce<Record<string, MenuItemWithTiers[]>>((acc, item) => {
+    if (!acc[item.category]) acc[item.category] = []
+    acc[item.category].push(item)
+    return acc
+  }, {})
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl"
+        className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="font-semibold text-gray-900 mb-1">Add to shortlist</h3>
+        <h3 className="font-semibold text-gray-900 mb-1">
+          {hasCatererMenu ? 'Send order' : 'Add to shortlist'}
+        </h3>
         <p className="text-sm text-gray-500 mb-4">
           {vendor.name} · {vendor.vendor_categories?.name}
-          {vendor.price_min && vendor.price_max && (
+          {vendor.price_min && vendor.price_max && !hasCatererMenu && (
             <span className="text-gray-400"> · {formatNaira(vendor.price_min)}–{formatNaira(vendor.price_max)}</span>
           )}
         </p>
 
-        {/* Offer amount */}
-        <div className="mb-4">
-          <label className="block text-xs font-medium text-gray-700 mb-1">Your offer (₦)</label>
-          <input
-            type="number"
-            min={0}
-            value={offerAmount}
-            onChange={(e) => setOfferAmount(e.target.value)}
-            placeholder="e.g. 1500000"
-            className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-          />
-          {suggestedOffer && (
-            <p className="text-xs text-gray-400 mt-1.5">
-              {isMidpoint
-                ? `Suggested ₦${suggestedOffer.toLocaleString()} — midpoint of vendor's range, which fits within your ${formatNaira(categoryBudget!)} budget. You could save money if they accept.`
-                : `Suggested ₦${suggestedOffer.toLocaleString()} — your full ${formatNaira(categoryBudget!)} budget for this category.`}
-              {' '}You can adjust up or down.
-            </p>
-          )}
-          {!suggestedOffer && (
-            <p className="text-xs text-gray-400 mt-1.5">
-              Enter your opening offer. The vendor can accept or counter with a different price.
-            </p>
-          )}
-          <label className="flex items-center gap-2 mt-2 cursor-pointer">
+        {hasCatererMenu ? (
+          <div className="mb-4">
+            {menuLoading ? (
+              <p className="text-xs text-gray-400 py-4">Loading menu...</p>
+            ) : vendorMenu.length === 0 ? (
+              <p className="text-xs text-gray-400">Menu not available.</p>
+            ) : (
+              <div className="space-y-4">
+                {Object.entries(menuByCategory).map(([cat, items]) => (
+                  <div key={cat}>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{cat}</p>
+                    <div className="space-y-2">
+                      {items.map((item) => {
+                        const sel = menuSelections[item.id] ?? { checked: false, servings: defaultServings }
+                        const pricePerHead = getPricePerServing(item.caterer_menu_pricing_tiers, sel.servings)
+                        return (
+                          <div key={item.id} className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={sel.checked}
+                              onChange={(e) =>
+                                setMenuSelections((prev) => ({
+                                  ...prev,
+                                  [item.id]: { ...sel, checked: e.target.checked },
+                                }))
+                              }
+                              className="rounded text-black shrink-0"
+                            />
+                            <span className="text-sm text-gray-800 flex-1">{item.name}</span>
+                            {sel.checked && (
+                              <input
+                                type="number"
+                                min={1}
+                                value={sel.servings}
+                                onChange={(e) =>
+                                  setMenuSelections((prev) => ({
+                                    ...prev,
+                                    [item.id]: { ...sel, servings: parseInt(e.target.value, 10) || 1 },
+                                  }))
+                                }
+                                className="w-20 text-xs border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-black"
+                                placeholder="servings"
+                              />
+                            )}
+                            <span className="text-xs text-gray-400 shrink-0 w-20 text-right">
+                              {pricePerHead ? `${formatNaira(pricePerHead)}/head` : ''}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {menuTotal > 0 && (
+                  <div className="border-t border-gray-100 pt-3 mt-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-gray-900">Total</span>
+                      <span className="text-sm font-bold text-gray-900">{formatNaira(menuTotal)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            <label className="flex items-center gap-2 mt-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isFinalOffer}
+                onChange={(e) => setIsFinalOffer(e.target.checked)}
+                className="rounded text-black"
+              />
+              <span className="text-xs text-gray-600">
+                Mark as final offer (vendor can only accept or decline, no counter)
+              </span>
+            </label>
+          </div>
+        ) : (
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-gray-700 mb-1">Your offer (₦)</label>
             <input
-              type="checkbox"
-              checked={isFinalOffer}
-              onChange={(e) => setIsFinalOffer(e.target.checked)}
-              className="rounded text-black"
+              type="number"
+              min={0}
+              value={offerAmount}
+              onChange={(e) => setOfferAmount(e.target.value)}
+              placeholder="e.g. 1500000"
+              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black"
             />
-            <span className="text-xs text-gray-600">
-              Mark as final offer (vendor can only accept or decline, no counter)
-            </span>
-          </label>
-        </div>
+            {suggestedOffer && (
+              <p className="text-xs text-gray-400 mt-1.5">
+                {isMidpoint
+                  ? `Suggested ₦${suggestedOffer.toLocaleString()} — midpoint of vendor's range, which fits within your ${formatNaira(categoryBudget!)} budget. You could save money if they accept.`
+                  : `Suggested ₦${suggestedOffer.toLocaleString()} — your full ${formatNaira(categoryBudget!)} budget for this category.`}
+                {' '}You can adjust up or down.
+              </p>
+            )}
+            {!suggestedOffer && (
+              <p className="text-xs text-gray-400 mt-1.5">
+                Enter your opening offer. The vendor can accept or counter with a different price.
+              </p>
+            )}
+            <label className="flex items-center gap-2 mt-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isFinalOffer}
+                onChange={(e) => setIsFinalOffer(e.target.checked)}
+                className="rounded text-black"
+              />
+              <span className="text-xs text-gray-600">
+                Mark as final offer (vendor can only accept or decline, no counter)
+              </span>
+            </label>
+          </div>
+        )}
 
         <p className="text-xs font-medium text-gray-600 mb-2">Choose preference slot</p>
         <div className="flex gap-2 mb-4">
@@ -651,10 +836,58 @@ function AddInterestModal({
             onClick={handleAdd}
             className="flex-1 py-2.5 bg-black text-white text-sm font-medium rounded-xl hover:bg-gray-800 disabled:opacity-40 transition"
           >
-            {loading ? 'Sending...' : 'Send offer'}
+            {loading ? 'Sending...' : hasCatererMenu ? 'Send order' : 'Send offer'}
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function DishPicker({
+  catalog,
+  selectedDishes,
+  onToggle,
+}: {
+  catalog: MenuCatalogCategory[]
+  selectedDishes: Set<string>
+  onToggle: (dish: string) => void
+}) {
+  if (catalog.length === 0) return null
+
+  return (
+    <div className="bg-gray-50 rounded-2xl p-4 mb-4">
+      <p className="text-sm font-semibold text-gray-900 mb-3">What would you like to serve?</p>
+      <div className="space-y-3">
+        {catalog.map((group) => (
+          <div key={group.category}>
+            <p className="text-xs font-medium text-gray-500 mb-1.5">{group.category}</p>
+            <div className="flex flex-wrap gap-2">
+              {group.items.map((dish) => {
+                const checked = selectedDishes.has(dish)
+                return (
+                  <button
+                    key={dish}
+                    onClick={() => onToggle(dish)}
+                    className={`text-xs px-3 py-1.5 rounded-full border transition ${
+                      checked
+                        ? 'bg-black text-white border-black'
+                        : 'border-gray-300 text-gray-600 hover:border-gray-400 bg-white'
+                    }`}
+                  >
+                    {dish}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+      {selectedDishes.size > 0 && (
+        <p className="text-xs text-gray-400 mt-2">
+          {selectedDishes.size} dish{selectedDishes.size !== 1 ? 'es' : ''} selected · caterers sorted by match
+        </p>
+      )}
     </div>
   )
 }
@@ -688,6 +921,8 @@ export default function VendorsSection({
   const [addingVendor, setAddingVendor] = useState<Vendor | null>(null)
   const [removing, setRemoving] = useState<string | null>(null)
   const [loadingVendors, setLoadingVendors] = useState(true)
+  const [menuCatalog, setMenuCatalog] = useState<MenuCatalogCategory[]>([])
+  const [selectedDishes, setSelectedDishes] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (initialCategory) setActiveCategory(initialCategory)
@@ -705,13 +940,15 @@ export default function VendorsSection({
     if (!token) return
     Promise.all([
       api.get<Vendor[]>(`/events/${eventId}/recommended-vendors`, token).catch(() => []),
-    ]).then(([v]) => {
+      api.get<MenuCatalogCategory[]>('/vendors/menu-catalog', token).catch(() => []),
+    ]).then(([v, catalog]) => {
       setVendors(v)
       const seen = new Set<string>()
       const cats = v
         .map((vendor) => vendor.vendor_categories)
         .filter((cat) => cat && !seen.has(cat.slug) && seen.add(cat.slug))
       setCategories(cats)
+      setMenuCatalog(catalog)
       setLoadingVendors(false)
     })
     fetchInterests()
@@ -740,7 +977,15 @@ export default function VendorsSection({
     )
   }
 
-  // group shortlist by category
+  const toggleDish = (dish: string) => {
+    setSelectedDishes((prev) => {
+      const next = new Set(prev)
+      if (next.has(dish)) next.delete(dish)
+      else next.add(dish)
+      return next
+    })
+  }
+
   const interestsByCategory = interests.reduce<Record<string, { name: string; items: Interest[] }>>(
     (acc, i) => {
       const cat = i.vendors?.vendor_categories
@@ -758,8 +1003,22 @@ export default function VendorsSection({
     ? vendors.filter((v) => v.vendor_categories?.slug === activeCategory)
     : vendors
 
-  const withinBudget = filteredVendors.filter((v) => v.is_within_budget)
-  const aboveBudget = filteredVendors.filter((v) => !v.is_within_budget)
+  const isCatererView =
+    activeCategory === 'caterers' ||
+    (activeCategory === '' && filteredVendors.every((v) => v.vendor_categories?.slug === 'caterers'))
+
+  const sortedFiltered = [...filteredVendors].sort((a, b) => {
+    if (selectedDishes.size === 0) return 0
+    const aIsCaterer = a.vendor_categories?.slug === 'caterers'
+    const bIsCaterer = b.vendor_categories?.slug === 'caterers'
+    if (!aIsCaterer && !bIsCaterer) return 0
+    const aScore = aIsCaterer ? (a.menu_item_names ?? []).filter((n) => selectedDishes.has(n)).length : 0
+    const bScore = bIsCaterer ? (b.menu_item_names ?? []).filter((n) => selectedDishes.has(n)).length : 0
+    return bScore - aScore
+  })
+
+  const withinBudget = sortedFiltered.filter((v) => v.is_within_budget)
+  const aboveBudget = sortedFiltered.filter((v) => !v.is_within_budget)
 
   return (
     <div className="space-y-8">
@@ -844,6 +1103,14 @@ export default function VendorsSection({
           </div>
         )}
 
+        {isCatererView && menuCatalog.length > 0 && (
+          <DishPicker
+            catalog={menuCatalog}
+            selectedDishes={selectedDishes}
+            onToggle={toggleDish}
+          />
+        )}
+
         {loadingVendors ? (
           <p className="text-sm text-gray-400">Loading...</p>
         ) : filteredVendors.length === 0 ? (
@@ -865,6 +1132,7 @@ export default function VendorsSection({
                   alreadyShortlisted={shortlistedVendorIds.has(vendor.id)}
                   slotsUsed={interests.filter((i) => i.vendors?.vendor_categories?.id === vendor.vendor_categories?.id).length}
                   onShortlist={() => setAddingVendor(vendor)}
+                  selectedDishes={selectedDishes}
                 />
               ))}
             </div>
@@ -886,6 +1154,7 @@ export default function VendorsSection({
                       alreadyShortlisted={shortlistedVendorIds.has(vendor.id)}
                       slotsUsed={interests.filter((i) => i.vendors?.vendor_categories?.id === vendor.vendor_categories?.id).length}
                       onShortlist={() => setAddingVendor(vendor)}
+                      selectedDishes={selectedDishes}
                     />
                   ))}
                 </div>
@@ -905,6 +1174,7 @@ export default function VendorsSection({
             return match?.amount ?? null
           })()}
           existingInterests={interests}
+          guestCount={guestCount}
           onAdd={handleAdd}
           onClose={() => setAddingVendor(null)}
         />

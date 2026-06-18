@@ -76,7 +76,19 @@ export class PlanGeneratorService {
       return { title: item.title, dueDate, sortOrder: index }
     })
 
-    const budgetBreakdown = budgetTemplate.map((alloc) => ({
+    // When user wants a coordinator, inject the line and reduce Miscellaneous to keep total at 100%
+    const COORDINATOR_PCT = 5
+    let adjustedBudget = [...budgetTemplate]
+    if (dto.wantsCoordinator === true) {
+      const miscIdx = adjustedBudget.findIndex((a) => a.category === 'Miscellaneous')
+      if (miscIdx !== -1) {
+        const reduced = Math.max(0, adjustedBudget[miscIdx].percentage - COORDINATOR_PCT)
+        adjustedBudget[miscIdx] = { ...adjustedBudget[miscIdx], percentage: reduced }
+      }
+      adjustedBudget.push({ category: 'Event Coordinator', percentage: COORDINATOR_PCT })
+    }
+
+    const budgetBreakdown = adjustedBudget.map((alloc) => ({
       ...alloc,
       amount: dto.budgetEstimate ? Math.round((alloc.percentage / 100) * dto.budgetEstimate) : null,
     }))
