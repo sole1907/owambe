@@ -85,130 +85,77 @@ function hoursUntil(iso: string) {
   return Math.max(0, Math.round((new Date(iso).getTime() - Date.now()) / (1000 * 60 * 60)))
 }
 
-function VendorStatusPanel({
-  interests,
+function InlineVendorStatus({
+  interest,
   onGoToVendors,
 }: {
-  interests: VendorInterest[]
+  interest: VendorInterest
   onGoToVendors: () => void
 }) {
-  // Group by category, pick best status per group
-  const byCategory = new Map<string, { name: string; best: VendorInterest }>()
-  for (const i of interests) {
-    const cat = i.vendors?.vendor_categories
-    if (!cat) continue
-    const existing = byCategory.get(cat.slug)
-    if (!existing || STATUS_PRIORITY[i.status] < STATUS_PRIORITY[existing.best.status]) {
-      byCategory.set(cat.slug, { name: cat.name, best: i })
-    }
-  }
-
-  if (byCategory.size === 0) return null
+  const vendor = interest.vendors
+  const priceBasis = interest.agreed_price ?? interest.offered_price
+  const commitmentFee =
+    priceBasis && vendor.commitment_fee_percentage
+      ? Math.round((priceBasis * vendor.commitment_fee_percentage) / 100)
+      : null
 
   return (
-    <div className="mb-5 border border-gray-200 rounded-xl overflow-hidden">
-      <div className="bg-gray-50 border-b border-gray-200 px-3 py-2">
-        <p className="text-xs font-semibold text-gray-700">Vendor status</p>
-      </div>
-      <div className="divide-y divide-gray-100">
-        {Array.from(byCategory.entries()).map(([slug, { name, best }]) => {
-          const vendor = best.vendors
-          const priceBasis = best.agreed_price ?? best.offered_price
-          const commitmentFee =
-            priceBasis && vendor.commitment_fee_percentage
-              ? Math.round((priceBasis * vendor.commitment_fee_percentage) / 100)
-              : null
+    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span className="text-xs text-gray-500">{vendor.name}</span>
+      <span className="text-gray-300">·</span>
 
-          return (
-            <div key={slug} className="px-3 py-2.5 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-gray-800">{name}</p>
-                <p className="text-xs text-gray-500 truncate">{vendor.name}</p>
-              </div>
+      {interest.status === 'committed' && (
+        <span className="text-xs font-medium text-green-700">Booked ✓</span>
+      )}
 
-              <div className="flex flex-col items-end gap-1 shrink-0">
-                {best.status === 'committed' && (
-                  <span className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
-                    Booked ✓
-                  </span>
-                )}
+      {interest.status === 'available' && (
+        <>
+          <span className="text-xs font-medium text-green-700">Offer accepted ✓</span>
+          <span className="text-gray-300">·</span>
+          <button onClick={onGoToVendors} className="text-xs text-black font-semibold hover:underline">
+            {commitmentFee ? `Pay commitment fee — ${fmt(commitmentFee)} →` : 'Pay commitment fee →'}
+          </button>
+        </>
+      )}
 
-                {best.status === 'available' && (
-                  <>
-                    <span className="text-xs font-medium text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
-                      Offer accepted ✓
-                    </span>
-                    <button
-                      onClick={onGoToVendors}
-                      className="text-xs text-black font-medium hover:underline"
-                    >
-                      {commitmentFee ? `Pay commitment fee — ${fmt(commitmentFee)} →` : 'Pay commitment fee →'}
-                    </button>
-                  </>
-                )}
+      {interest.status === 'quoted' && (
+        <>
+          <span className="text-xs font-medium text-purple-700">Counter-offer received</span>
+          <span className="text-gray-300">·</span>
+          <button onClick={onGoToVendors} className="text-xs text-purple-700 font-semibold hover:underline">
+            {interest.counter_price ? `${fmt(interest.counter_price)} — review →` : 'Review →'}
+          </button>
+        </>
+      )}
 
-                {best.status === 'quoted' && (
-                  <>
-                    <span className="text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
-                      Counter-offer received
-                    </span>
-                    <button
-                      onClick={onGoToVendors}
-                      className="text-xs text-purple-700 font-medium hover:underline"
-                    >
-                      {best.counter_price ? `${fmt(best.counter_price)} — accept or counter →` : 'Review counter →'}
-                    </button>
-                  </>
-                )}
+      {interest.status === 'pending' && (
+        <>
+          <span className="text-xs text-amber-700">Awaiting response</span>
+          {interest.expires_at && (
+            <>
+              <span className="text-gray-300">·</span>
+              <span className="text-xs text-gray-400">
+                {(() => {
+                  const h = hoursUntil(interest.expires_at)
+                  return h === 0 ? 'Expiring soon' : `${h}h left`
+                })()}
+              </span>
+            </>
+          )}
+        </>
+      )}
 
-                {best.status === 'pending' && (
-                  <>
-                    <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                      Awaiting response
-                    </span>
-                    {best.expires_at && (
-                      <p className="text-xs text-gray-400">
-                        {(() => {
-                          const h = hoursUntil(best.expires_at)
-                          return h === 0 ? 'Expiring soon' : `${h}h remaining`
-                        })()}
-                      </p>
-                    )}
-                  </>
-                )}
-
-                {best.status === 'unavailable' && (
-                  <>
-                    <span className="text-xs text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
-                      Not available
-                    </span>
-                    <button
-                      onClick={onGoToVendors}
-                      className="text-xs text-black font-medium hover:underline"
-                    >
-                      Find another →
-                    </button>
-                  </>
-                )}
-
-                {best.status === 'expired' && (
-                  <>
-                    <span className="text-xs text-gray-400 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full">
-                      Expired
-                    </span>
-                    <button
-                      onClick={onGoToVendors}
-                      className="text-xs text-black font-medium hover:underline"
-                    >
-                      Find another →
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
+      {(interest.status === 'unavailable' || interest.status === 'expired') && (
+        <>
+          <span className="text-xs text-red-500">
+            {interest.status === 'unavailable' ? 'Not available' : 'Expired'}
+          </span>
+          <span className="text-gray-300">·</span>
+          <button onClick={onGoToVendors} className="text-xs text-black font-semibold hover:underline">
+            Find another →
+          </button>
+        </>
+      )}
     </div>
   )
 }
@@ -279,13 +226,16 @@ export default function ChecklistSection({ eventId, initialItems, budgetBreakdow
     : 0
   const unallocated = totalBudget ? Math.max(0, totalBudget - allocatedBudget) : null
 
-  // Which category slugs are already shortlisted (to suppress redundant "Find X" CTAs)
-  const shortlistedSlugs = new Set(
-    vendorInterests
-      .filter((i) => !['unavailable', 'expired'].includes(i.status))
-      .map((i) => i.vendors?.vendor_categories?.slug)
-      .filter(Boolean),
-  )
+  // Best interest per category slug, for inline status on matching checklist items
+  const bestByCategorySlug = new Map<string, VendorInterest>()
+  for (const i of vendorInterests) {
+    const slug = i.vendors?.vendor_categories?.slug
+    if (!slug) continue
+    const existing = bestByCategorySlug.get(slug)
+    if (!existing || STATUS_PRIORITY[i.status] < STATUS_PRIORITY[existing.status]) {
+      bestByCategorySlug.set(slug, i)
+    }
+  }
 
   return (
     <div>
@@ -303,14 +253,6 @@ export default function ChecklistSection({ eventId, initialItems, budgetBreakdow
           + Add item
         </button>
       </div>
-
-      {/* Vendor status */}
-      {vendorInterests.length > 0 && (
-        <VendorStatusPanel
-          interests={vendorInterests}
-          onGoToVendors={() => onFindVendors?.('')}
-        />
-      )}
 
       {/* Budget guide */}
       {budgetBreakdown && budgetBreakdown.some((b) => b.amount) && (
@@ -400,19 +342,30 @@ export default function ChecklistSection({ eventId, initialItems, budgetBreakdow
                   Due {new Date(item.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </p>
               )}
-              {/* Only show "Find X" CTA if no vendor is already shortlisted for that category */}
-              {!item.is_completed && !editingId && onFindVendors && (() => {
+              {!editingId && (() => {
                 const cta = getCTA(item.title)
                 if (!cta) return null
-                if (shortlistedSlugs.has(cta.slug)) return null
-                return (
-                  <button
-                    onClick={() => onFindVendors(cta.slug)}
-                    className="mt-1.5 text-xs text-black font-medium hover:underline"
-                  >
-                    {cta.label} →
-                  </button>
-                )
+                const best = bestByCategorySlug.get(cta.slug)
+                if (best) {
+                  return (
+                    <InlineVendorStatus
+                      interest={best}
+                      onGoToVendors={() => onFindVendors?.('')}
+                    />
+                  )
+                }
+                // No vendor shortlisted yet — show discovery CTA
+                if (!item.is_completed && onFindVendors) {
+                  return (
+                    <button
+                      onClick={() => onFindVendors(cta.slug)}
+                      className="mt-1.5 text-xs text-black font-medium hover:underline"
+                    >
+                      {cta.label} →
+                    </button>
+                  )
+                }
+                return null
               })()}
             </div>
 
