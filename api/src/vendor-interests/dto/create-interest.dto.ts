@@ -9,4 +9,5 @@ export class CreateInterestDto {
   offeredPrice?: number  // used for non-caterer vendors; caterers compute from menuSelections
   isFinalOffer?: boolean
   menuSelections?: MenuSelectionDto[] // caterer menu order
+  discountRequested?: number // caterers only: organiser requests this flat discount on the computed total
 }

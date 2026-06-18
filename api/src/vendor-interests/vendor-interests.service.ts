@@ -166,6 +166,7 @@ export class VendorInterestsService {
         expires_at: expiresAt.toISOString(),
         offered_price: computedOfferedPrice,
         is_final_offer: dto.isFinalOffer ?? false,
+        discount_requested: dto.discountRequested ?? null,
       })
       .select()
       .single()

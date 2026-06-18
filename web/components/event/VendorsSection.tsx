@@ -85,6 +85,26 @@ function getPricePerServing(
   )
 }
 
+function getNextTierHint(
+  tiers: MenuItemWithTiers['caterer_menu_pricing_tiers'],
+  servings: number,
+): { minServings: number; pricePerServing: number } | null {
+  const sorted = [...tiers].sort((a, b) => a.min_servings - b.min_servings)
+  const next = sorted.find((t) => t.min_servings > servings)
+  if (!next) return null
+  return { minServings: next.min_servings, pricePerServing: next.price_per_serving }
+}
+
+function isInDiscountedTier(
+  tiers: MenuItemWithTiers['caterer_menu_pricing_tiers'],
+  servings: number,
+): boolean {
+  const sorted = [...tiers].sort((a, b) => a.min_servings - b.min_servings)
+  const baseTier = sorted[0]
+  const currentPrice = getPricePerServing(tiers, servings)
+  return !!baseTier && currentPrice < baseTier.price_per_serving
+}
+
 const RANK_LABEL = ['A', 'B', 'C']
 
 const STATUS_STYLES: Record<Interest['status'], string> = {
@@ -582,6 +602,7 @@ function AddInterestModal({
   const [menuLoading, setMenuLoading] = useState(false)
   const defaultServings = guestCount ?? 100
   const [menuSelections, setMenuSelections] = useState<Record<string, { checked: boolean; servings: number }>>({})
+  const [discountPct, setDiscountPct] = useState('')
 
   useEffect(() => {
     if (!hasCatererMenu || !token) return
@@ -624,6 +645,8 @@ function AddInterestModal({
             menuItemId: item.id,
             servings: menuSelections[item.id].servings,
           }))
+        const pct = parseFloat(discountPct)
+        const discountRequested = menuTotal > 0 && pct > 0 ? Math.round(menuTotal * pct / 100) : undefined
         await api.post<Interest>(
           `/events/${eventId}/vendor-interests`,
           {
@@ -632,6 +655,7 @@ function AddInterestModal({
             offeredPrice: menuTotal || undefined,
             menuSelections: selections.length > 0 ? selections : undefined,
             isFinalOffer: isFinalOffer || undefined,
+            discountRequested,
           },
           token,
         )
@@ -693,42 +717,52 @@ function AddInterestModal({
                 {Object.entries(menuByCategory).map(([cat, items]) => (
                   <div key={cat}>
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{cat}</p>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {items.map((item) => {
                         const sel = menuSelections[item.id] ?? { checked: false, servings: defaultServings }
                         const pricePerHead = getPricePerServing(item.caterer_menu_pricing_tiers, sel.servings)
+                        const discounted = sel.checked && isInDiscountedTier(item.caterer_menu_pricing_tiers, sel.servings)
+                        const nextTier = sel.checked ? getNextTierHint(item.caterer_menu_pricing_tiers, sel.servings) : null
                         return (
-                          <div key={item.id} className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={sel.checked}
-                              onChange={(e) =>
-                                setMenuSelections((prev) => ({
-                                  ...prev,
-                                  [item.id]: { ...sel, checked: e.target.checked },
-                                }))
-                              }
-                              className="rounded text-black shrink-0"
-                            />
-                            <span className="text-sm text-gray-800 flex-1">{item.name}</span>
-                            {sel.checked && (
+                          <div key={item.id}>
+                            <div className="flex items-center gap-2">
                               <input
-                                type="number"
-                                min={1}
-                                value={sel.servings}
+                                type="checkbox"
+                                checked={sel.checked}
                                 onChange={(e) =>
                                   setMenuSelections((prev) => ({
                                     ...prev,
-                                    [item.id]: { ...sel, servings: parseInt(e.target.value, 10) || 1 },
+                                    [item.id]: { ...sel, checked: e.target.checked },
                                   }))
                                 }
-                                className="w-20 text-xs border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-black"
-                                placeholder="servings"
+                                className="rounded text-black shrink-0"
                               />
+                              <span className="text-sm text-gray-800 flex-1">{item.name}</span>
+                              {sel.checked && (
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={sel.servings}
+                                  onChange={(e) =>
+                                    setMenuSelections((prev) => ({
+                                      ...prev,
+                                      [item.id]: { ...sel, servings: parseInt(e.target.value, 10) || 1 },
+                                    }))
+                                  }
+                                  className="w-20 text-xs border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-black"
+                                  placeholder="servings"
+                                />
+                              )}
+                              <span className={`text-xs shrink-0 w-24 text-right font-medium ${discounted ? 'text-green-600' : 'text-gray-400'}`}>
+                                {pricePerHead ? `${formatNaira(pricePerHead)}/head` : ''}
+                                {discounted && ' ↓'}
+                              </span>
+                            </div>
+                            {nextTier && (
+                              <p className="text-xs text-blue-500 mt-0.5 pl-6">
+                                {formatNaira(nextTier.pricePerServing)}/head at {nextTier.minServings}+ servings
+                              </p>
                             )}
-                            <span className="text-xs text-gray-400 shrink-0 w-20 text-right">
-                              {pricePerHead ? `${formatNaira(pricePerHead)}/head` : ''}
-                            </span>
                           </div>
                         )
                       })}
@@ -736,10 +770,40 @@ function AddInterestModal({
                   </div>
                 ))}
                 {menuTotal > 0 && (
-                  <div className="border-t border-gray-100 pt-3 mt-3">
+                  <div className="border-t border-gray-100 pt-3 mt-3 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-semibold text-gray-900">Total</span>
                       <span className="text-sm font-bold text-gray-900">{formatNaira(menuTotal)}</span>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Request a discount (optional)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <div className="relative w-24">
+                          <input
+                            type="number"
+                            min={0}
+                            max={50}
+                            value={discountPct}
+                            onChange={(e) => setDiscountPct(e.target.value)}
+                            placeholder="0"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm pr-6 focus:outline-none focus:ring-1 focus:ring-black"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
+                        </div>
+                        {discountPct && parseFloat(discountPct) > 0 && (
+                          <p className="text-xs text-gray-500">
+                            {formatNaira(Math.round(menuTotal * parseFloat(discountPct) / 100))} off →{' '}
+                            <span className="font-medium text-gray-800">
+                              {formatNaira(menuTotal - Math.round(menuTotal * parseFloat(discountPct) / 100))}
+                            </span>
+                          </p>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">
+                        The vendor can accept, decline, or counter your discount request.
+                      </p>
                     </div>
                   </div>
                 )}
