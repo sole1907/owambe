@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/context/auth'
 
@@ -10,6 +10,22 @@ type ChecklistItem = {
   due_date: string | null
   is_completed: boolean
   sort_order: number
+}
+
+type VendorInterest = {
+  id: string
+  preference_rank: number
+  status: 'pending' | 'available' | 'quoted' | 'unavailable' | 'expired' | 'committed'
+  expires_at: string | null
+  offered_price: number | null
+  agreed_price: number | null
+  counter_price: number | null
+  is_final_offer: boolean
+  vendors: {
+    name: string
+    commitment_fee_percentage: number
+    vendor_categories: { name: string; slug: string }
+  }
 }
 
 const VENDOR_CTAS: { pattern: RegExp; slug: string; label: string }[] = [
@@ -34,7 +50,6 @@ type BudgetItem = {
   amount: number | null
 }
 
-// Maps budget category labels to vendor category slugs (mirrors backend constant)
 const BUDGET_CATEGORY_TO_SLUG: Record<string, string> = {
   'Venue': 'venues',
   'Catering': 'caterers',
@@ -62,14 +77,151 @@ function fmt(v: number) {
   return `₦${v.toLocaleString()}`
 }
 
+const STATUS_PRIORITY: Record<VendorInterest['status'], number> = {
+  committed: 0, available: 1, quoted: 2, pending: 3, unavailable: 4, expired: 5,
+}
+
+function hoursUntil(iso: string) {
+  return Math.max(0, Math.round((new Date(iso).getTime() - Date.now()) / (1000 * 60 * 60)))
+}
+
+function VendorStatusPanel({
+  interests,
+  onGoToVendors,
+}: {
+  interests: VendorInterest[]
+  onGoToVendors: () => void
+}) {
+  // Group by category, pick best status per group
+  const byCategory = new Map<string, { name: string; best: VendorInterest }>()
+  for (const i of interests) {
+    const cat = i.vendors?.vendor_categories
+    if (!cat) continue
+    const existing = byCategory.get(cat.slug)
+    if (!existing || STATUS_PRIORITY[i.status] < STATUS_PRIORITY[existing.best.status]) {
+      byCategory.set(cat.slug, { name: cat.name, best: i })
+    }
+  }
+
+  if (byCategory.size === 0) return null
+
+  return (
+    <div className="mb-5 border border-gray-200 rounded-xl overflow-hidden">
+      <div className="bg-gray-50 border-b border-gray-200 px-3 py-2">
+        <p className="text-xs font-semibold text-gray-700">Vendor status</p>
+      </div>
+      <div className="divide-y divide-gray-100">
+        {Array.from(byCategory.entries()).map(([slug, { name, best }]) => {
+          const vendor = best.vendors
+          const priceBasis = best.agreed_price ?? best.offered_price
+          const commitmentFee =
+            priceBasis && vendor.commitment_fee_percentage
+              ? Math.round((priceBasis * vendor.commitment_fee_percentage) / 100)
+              : null
+
+          return (
+            <div key={slug} className="px-3 py-2.5 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-gray-800">{name}</p>
+                <p className="text-xs text-gray-500 truncate">{vendor.name}</p>
+              </div>
+
+              <div className="flex flex-col items-end gap-1 shrink-0">
+                {best.status === 'committed' && (
+                  <span className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                    Booked ✓
+                  </span>
+                )}
+
+                {best.status === 'available' && (
+                  <>
+                    <span className="text-xs font-medium text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                      Offer accepted ✓
+                    </span>
+                    <button
+                      onClick={onGoToVendors}
+                      className="text-xs text-black font-medium hover:underline"
+                    >
+                      {commitmentFee ? `Pay commitment fee — ${fmt(commitmentFee)} →` : 'Pay commitment fee →'}
+                    </button>
+                  </>
+                )}
+
+                {best.status === 'quoted' && (
+                  <>
+                    <span className="text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
+                      Counter-offer received
+                    </span>
+                    <button
+                      onClick={onGoToVendors}
+                      className="text-xs text-purple-700 font-medium hover:underline"
+                    >
+                      {best.counter_price ? `${fmt(best.counter_price)} — accept or counter →` : 'Review counter →'}
+                    </button>
+                  </>
+                )}
+
+                {best.status === 'pending' && (
+                  <>
+                    <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                      Awaiting response
+                    </span>
+                    {best.expires_at && (
+                      <p className="text-xs text-gray-400">
+                        {(() => {
+                          const h = hoursUntil(best.expires_at)
+                          return h === 0 ? 'Expiring soon' : `${h}h remaining`
+                        })()}
+                      </p>
+                    )}
+                  </>
+                )}
+
+                {best.status === 'unavailable' && (
+                  <>
+                    <span className="text-xs text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
+                      Not available
+                    </span>
+                    <button
+                      onClick={onGoToVendors}
+                      className="text-xs text-black font-medium hover:underline"
+                    >
+                      Find another →
+                    </button>
+                  </>
+                )}
+
+                {best.status === 'expired' && (
+                  <>
+                    <span className="text-xs text-gray-400 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full">
+                      Expired
+                    </span>
+                    <button
+                      onClick={onGoToVendors}
+                      className="text-xs text-black font-medium hover:underline"
+                    >
+                      Find another →
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 type Props = {
   eventId: string
   initialItems: ChecklistItem[]
   budgetBreakdown?: BudgetItem[]
+  totalBudget?: number | null
   onFindVendors?: (categorySlug: string) => void
 }
 
-export default function ChecklistSection({ eventId, initialItems, budgetBreakdown, onFindVendors }: Props) {
+export default function ChecklistSection({ eventId, initialItems, budgetBreakdown, totalBudget, onFindVendors }: Props) {
   const { token } = useAuth()
   const [items, setItems] = useState<ChecklistItem[]>(
     [...initialItems].sort((a, b) => a.sort_order - b.sort_order),
@@ -78,6 +230,15 @@ export default function ChecklistSection({ eventId, initialItems, budgetBreakdow
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const [adding, setAdding] = useState(false)
+  const [vendorInterests, setVendorInterests] = useState<VendorInterest[]>([])
+
+  useEffect(() => {
+    if (!token) return
+    api
+      .get<VendorInterest[]>(`/events/${eventId}/vendor-interests`, token)
+      .then(setVendorInterests)
+      .catch(() => null)
+  }, [eventId, token])
 
   const completed = items.filter((i) => i.is_completed).length
 
@@ -112,6 +273,20 @@ export default function ChecklistSection({ eventId, initialItems, budgetBreakdow
     await api.delete(`/events/checklist/${id}`, token ?? undefined)
   }
 
+  // Budget totals
+  const allocatedBudget = budgetBreakdown
+    ? budgetBreakdown.reduce((sum, b) => sum + (b.amount ?? 0), 0)
+    : 0
+  const unallocated = totalBudget ? Math.max(0, totalBudget - allocatedBudget) : null
+
+  // Which category slugs are already shortlisted (to suppress redundant "Find X" CTAs)
+  const shortlistedSlugs = new Set(
+    vendorInterests
+      .filter((i) => !['unavailable', 'expired'].includes(i.status))
+      .map((i) => i.vendors?.vendor_categories?.slug)
+      .filter(Boolean),
+  )
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -129,11 +304,29 @@ export default function ChecklistSection({ eventId, initialItems, budgetBreakdow
         </button>
       </div>
 
+      {/* Vendor status */}
+      {vendorInterests.length > 0 && (
+        <VendorStatusPanel
+          interests={vendorInterests}
+          onGoToVendors={() => onFindVendors?.('')}
+        />
+      )}
+
       {/* Budget guide */}
       {budgetBreakdown && budgetBreakdown.some((b) => b.amount) && (
         <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl p-3">
-          <p className="text-xs font-semibold text-amber-900 mb-2">Budget guide</p>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-amber-900">Budget guide</p>
+            {onFindVendors && (
+              <button
+                onClick={() => onFindVendors('')}
+                className="text-xs text-amber-700 hover:underline font-medium"
+              >
+                View vendors →
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-2">
             {budgetBreakdown
               .filter((b) => b.amount && BUDGET_CATEGORY_TO_SLUG[b.category])
               .map((b) => (
@@ -143,6 +336,17 @@ export default function ChecklistSection({ eventId, initialItems, budgetBreakdow
                 </div>
               ))}
           </div>
+          {totalBudget && (
+            <div className="pt-2 border-t border-amber-200 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-semibold text-amber-900">Total budget</span>
+                <span className="text-xs font-bold text-amber-900">{fmt(totalBudget)}</span>
+              </div>
+              {unallocated !== null && unallocated > 0 && (
+                <span className="text-xs text-amber-700">{fmt(unallocated)} unallocated</span>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -196,16 +400,19 @@ export default function ChecklistSection({ eventId, initialItems, budgetBreakdow
                   Due {new Date(item.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </p>
               )}
+              {/* Only show "Find X" CTA if no vendor is already shortlisted for that category */}
               {!item.is_completed && !editingId && onFindVendors && (() => {
                 const cta = getCTA(item.title)
-                return cta ? (
+                if (!cta) return null
+                if (shortlistedSlugs.has(cta.slug)) return null
+                return (
                   <button
                     onClick={() => onFindVendors(cta.slug)}
                     className="mt-1.5 text-xs text-black font-medium hover:underline"
                   >
                     {cta.label} →
                   </button>
-                ) : null
+                )
               })()}
             </div>
 

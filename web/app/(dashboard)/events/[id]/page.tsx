@@ -202,6 +202,7 @@ export default function EventPage() {
           eventId={event.id}
           initialItems={event.checklist_items}
           budgetBreakdown={event.event_plans?.budget_breakdown}
+          totalBudget={event.budget_estimate}
           onFindVendors={(slug) => { setInitialVendorCategory(slug); setActiveTab('vendors') }}
         />
       )}
