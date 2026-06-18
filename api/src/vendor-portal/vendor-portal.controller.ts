@@ -72,4 +72,36 @@ export class VendorPortalController {
   deleteMenuItem(@CurrentUser() user: any, @Param('id') id: string) {
     return this.portal.deleteMenuItem(user.id, id)
   }
+
+  // ── Decorator styles & packages management ────────────────────────────────
+
+  @Get('decorator')
+  getDecoratorProfile(@CurrentUser() user: any) {
+    return this.portal.getDecoratorProfile(user.id)
+  }
+
+  @Post('decorator/styles')
+  addDecoratorStyle(@CurrentUser() user: any, @Body() body: any) {
+    return this.portal.addDecoratorStyle(user.id, body)
+  }
+
+  @Delete('decorator/styles/:id')
+  deleteDecoratorStyle(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.portal.deleteDecoratorStyle(user.id, id)
+  }
+
+  @Post('decorator/packages')
+  addDecoratorPackage(@CurrentUser() user: any, @Body() body: any) {
+    return this.portal.addDecoratorPackage(user.id, body)
+  }
+
+  @Patch('decorator/packages/:id')
+  updateDecoratorPackage(@CurrentUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return this.portal.updateDecoratorPackage(user.id, id, body)
+  }
+
+  @Delete('decorator/packages/:id')
+  deleteDecoratorPackage(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.portal.deleteDecoratorPackage(user.id, id)
+  }
 }

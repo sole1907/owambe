@@ -22,6 +22,7 @@ type Vendor = {
   is_within_budget: boolean
   vendor_categories: Category
   menu_item_names: string[]
+  style_names: string[]
 }
 
 type Interest = {
@@ -43,6 +44,21 @@ type Interest = {
 }
 
 type MenuCatalogCategory = { category: string; items: string[] }
+
+type StyleCatalogItem = { style: string }
+
+type DecoratorPackage = {
+  id: string
+  name: string
+  description: string | null
+  includes: string[]
+  decorator_package_guest_tiers: {
+    id: string
+    min_guests: number
+    max_guests: number | null
+    price: number
+  }[]
+}
 
 type MenuItemWithTiers = {
   id: string
@@ -105,6 +121,20 @@ function isInDiscountedTier(
   return !!baseTier && currentPrice < baseTier.price_per_serving
 }
 
+function getPackagePrice(
+  tiers: DecoratorPackage['decorator_package_guest_tiers'],
+  guests: number,
+): number {
+  const sorted = [...tiers].sort((a, b) => b.min_guests - a.min_guests)
+  return (
+    sorted.find(
+      (t) => guests >= t.min_guests && (t.max_guests === null || guests <= t.max_guests),
+    )?.price ??
+    sorted[sorted.length - 1]?.price ??
+    0
+  )
+}
+
 const RANK_LABEL = ['A', 'B', 'C']
 
 const STATUS_STYLES: Record<Interest['status'], string> = {
@@ -141,17 +171,22 @@ function VendorCard({
   slotsUsed,
   onShortlist,
   selectedDishes,
+  selectedStyles,
 }: {
   vendor: Vendor
   alreadyShortlisted: boolean
   slotsUsed: number
   onShortlist: () => void
   selectedDishes: Set<string>
+  selectedStyles: Set<string>
 }) {
   const allSlotsFull = slotsUsed >= 3
   const isCaterer = vendor.vendor_categories?.slug === 'caterers'
+  const isDecoratorView = vendor.vendor_categories?.slug === 'decorators'
   const menuNames = vendor.menu_item_names ?? []
+  const styleNames = vendor.style_names ?? []
 
+  // Caterer dish-match badge
   const matchCount =
     isCaterer && selectedDishes.size > 0
       ? menuNames.filter((n) => selectedDishes.has(n)).length
@@ -162,6 +197,20 @@ function VendorCard({
     matchRatio >= 0.8
       ? 'bg-green-100 text-green-700'
       : matchRatio >= 0.4
+      ? 'bg-amber-100 text-amber-700'
+      : 'bg-red-100 text-red-700'
+
+  // Decorator style-match badge
+  const styleMatchCount =
+    isDecoratorView && selectedStyles.size > 0
+      ? styleNames.filter((n) => selectedStyles.has(n)).length
+      : 0
+  const showStyleBadge = isDecoratorView && selectedStyles.size > 0 && styleNames.length > 0
+  const styleMatchRatio = selectedStyles.size > 0 ? styleMatchCount / selectedStyles.size : 0
+  const styleBadgeColor =
+    styleMatchRatio >= 0.8
+      ? 'bg-green-100 text-green-700'
+      : styleMatchRatio >= 0.4
       ? 'bg-amber-100 text-amber-700'
       : 'bg-red-100 text-red-700'
 
@@ -193,6 +242,11 @@ function VendorCard({
             {showBadge && (
               <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${badgeColor}`}>
                 {matchCount}/{menuNames.length} dishes
+              </span>
+            )}
+            {showStyleBadge && (
+              <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${styleBadgeColor}`}>
+                {styleMatchCount}/{selectedStyles.size} styles
               </span>
             )}
             <span className="text-xs text-gray-400">★ {vendor.rating}</span>
@@ -592,6 +646,7 @@ function AddInterestModal({
   const [isFinalOffer, setIsFinalOffer] = useState(false)
 
   const isCaterer = vendor.vendor_categories?.slug === 'caterers'
+  const isDecorator = vendor.vendor_categories?.slug === 'decorators'
   const hasCatererMenu = isCaterer && (vendor.menu_item_names?.length ?? 0) > 0
 
   const suggestedOffer = computeSuggestedOffer(vendor.price_min, vendor.price_max, categoryBudget)
@@ -603,6 +658,28 @@ function AddInterestModal({
   const defaultServings = guestCount ?? 100
   const [menuSelections, setMenuSelections] = useState<Record<string, { checked: boolean; servings: number }>>({})
   const [discountPct, setDiscountPct] = useState('')
+
+  // Decorator packages
+  const decoratorGuests = guestCount ?? 100
+  const [packages, setPackages] = useState<DecoratorPackage[]>([])
+  const [packagesLoading, setPackagesLoading] = useState(false)
+  const [selectedPackageId, setSelectedPackageId] = useState<string | null>(null)
+  const hasPackages = isDecorator && packages.length > 0
+
+  useEffect(() => {
+    if (!isDecorator || !token) return
+    setPackagesLoading(true)
+    api
+      .get<DecoratorPackage[]>(`/vendors/${vendor.slug}/packages`, token)
+      .then((pkgs) => setPackages(pkgs))
+      .catch(() => {})
+      .finally(() => setPackagesLoading(false))
+  }, [isDecorator, token, vendor.slug])
+
+  const selectedPackage = packages.find((p) => p.id === selectedPackageId) ?? null
+  const packageTotal = selectedPackage
+    ? getPackagePrice(selectedPackage.decorator_package_guest_tiers, decoratorGuests)
+    : 0
 
   useEffect(() => {
     if (!hasCatererMenu || !token) return
@@ -638,7 +715,22 @@ function AddInterestModal({
     setLoading(true)
     setError('')
     try {
-      if (hasCatererMenu && vendorMenu.length > 0) {
+      if (hasPackages && selectedPackage) {
+        const pct = parseFloat(discountPct)
+        const discountRequested = packageTotal > 0 && pct > 0 ? Math.round(packageTotal * pct / 100) : undefined
+        await api.post<Interest>(
+          `/events/${eventId}/vendor-interests`,
+          {
+            vendorId: vendor.id,
+            preferenceRank: rank,
+            decoratorPackageId: selectedPackage.id,
+            decoratorGuestCount: decoratorGuests,
+            isFinalOffer: isFinalOffer || undefined,
+            discountRequested,
+          },
+          token,
+        )
+      } else if (hasCatererMenu && vendorMenu.length > 0) {
         const selections = vendorMenu
           .filter((item) => menuSelections[item.id]?.checked)
           .map((item) => ({
@@ -697,7 +789,7 @@ function AddInterestModal({
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="font-semibold text-gray-900 mb-1">
-          {hasCatererMenu ? 'Send order' : 'Add to shortlist'}
+          {hasCatererMenu || hasPackages ? 'Send order' : 'Add to shortlist'}
         </h3>
         <p className="text-sm text-gray-500 mb-4">
           {vendor.name} · {vendor.vendor_categories?.name}
@@ -706,7 +798,117 @@ function AddInterestModal({
           )}
         </p>
 
-        {hasCatererMenu ? (
+        {isDecorator ? (
+          <div className="mb-4">
+            {packagesLoading ? (
+              <p className="text-xs text-gray-400 py-4">Loading packages...</p>
+            ) : packages.length === 0 ? (
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Your offer (₦)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={offerAmount}
+                  onChange={(e) => setOfferAmount(e.target.value)}
+                  placeholder="e.g. 1500000"
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                />
+                <p className="text-xs text-gray-400 mt-1.5">
+                  This decorator hasn&apos;t published packages. Enter your opening offer instead.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500">
+                  Pricing shown for ~{decoratorGuests.toLocaleString()} guests.
+                </p>
+                {packages.map((pkg) => {
+                  const price = getPackagePrice(pkg.decorator_package_guest_tiers, decoratorGuests)
+                  const selected = selectedPackageId === pkg.id
+                  return (
+                    <button
+                      key={pkg.id}
+                      type="button"
+                      onClick={() => setSelectedPackageId(pkg.id)}
+                      className={`w-full text-left border rounded-xl p-3 transition ${
+                        selected
+                          ? 'border-black bg-black text-white'
+                          : 'border-gray-200 hover:border-gray-400 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-sm">{pkg.name}</span>
+                        <span className="text-sm font-bold">{formatNaira(price)}</span>
+                      </div>
+                      {pkg.description && (
+                        <p className={`text-xs mt-1 ${selected ? 'text-gray-200' : 'text-gray-500'}`}>
+                          {pkg.description}
+                        </p>
+                      )}
+                      {pkg.includes.length > 0 && (
+                        <ul className={`text-xs mt-2 space-y-0.5 ${selected ? 'text-gray-200' : 'text-gray-600'}`}>
+                          {pkg.includes.map((inc, i) => (
+                            <li key={i}>• {inc}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </button>
+                  )
+                })}
+
+                {selectedPackage && packageTotal > 0 && (
+                  <div className="border-t border-gray-100 pt-3 mt-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-gray-900">Total</span>
+                      <span className="text-sm font-bold text-gray-900">{formatNaira(packageTotal)}</span>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Request a discount (optional)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <div className="relative w-24">
+                          <input
+                            type="number"
+                            min={0}
+                            max={50}
+                            value={discountPct}
+                            onChange={(e) => setDiscountPct(e.target.value)}
+                            placeholder="0"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm pr-6 focus:outline-none focus:ring-1 focus:ring-black"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
+                        </div>
+                        {discountPct && parseFloat(discountPct) > 0 && (
+                          <p className="text-xs text-gray-500">
+                            {formatNaira(Math.round(packageTotal * parseFloat(discountPct) / 100))} off →{' '}
+                            <span className="font-medium text-gray-800">
+                              {formatNaira(packageTotal - Math.round(packageTotal * parseFloat(discountPct) / 100))}
+                            </span>
+                          </p>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">
+                        The vendor can accept, decline, or counter your discount request.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            <label className="flex items-center gap-2 mt-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isFinalOffer}
+                onChange={(e) => setIsFinalOffer(e.target.checked)}
+                className="rounded text-black"
+              />
+              <span className="text-xs text-gray-600">
+                Mark as final offer (vendor can only accept or decline, no counter)
+              </span>
+            </label>
+          </div>
+        ) : hasCatererMenu ? (
           <div className="mb-4">
             {menuLoading ? (
               <p className="text-xs text-gray-400 py-4">Loading menu...</p>
@@ -898,11 +1100,11 @@ function AddInterestModal({
             Cancel
           </button>
           <button
-            disabled={!rank || loading}
+            disabled={!rank || loading || (hasPackages && !selectedPackage)}
             onClick={handleAdd}
             className="flex-1 py-2.5 bg-black text-white text-sm font-medium rounded-xl hover:bg-gray-800 disabled:opacity-40 transition"
           >
-            {loading ? 'Sending...' : hasCatererMenu ? 'Send order' : 'Send offer'}
+            {loading ? 'Sending...' : hasCatererMenu || hasPackages ? 'Send order' : 'Send offer'}
           </button>
         </div>
       </div>
@@ -958,6 +1160,47 @@ function DishPicker({
   )
 }
 
+function StylePicker({
+  catalog,
+  selectedStyles,
+  onToggle,
+}: {
+  catalog: StyleCatalogItem[]
+  selectedStyles: Set<string>
+  onToggle: (style: string) => void
+}) {
+  if (catalog.length === 0) return null
+
+  return (
+    <div className="bg-gray-50 rounded-2xl p-4 mb-4">
+      <p className="text-sm font-semibold text-gray-900 mb-3">What aesthetic are you going for?</p>
+      <div className="flex flex-wrap gap-2">
+        {catalog.map(({ style }) => {
+          const checked = selectedStyles.has(style)
+          return (
+            <button
+              key={style}
+              onClick={() => onToggle(style)}
+              className={`text-xs px-3 py-1.5 rounded-full border transition ${
+                checked
+                  ? 'bg-black text-white border-black'
+                  : 'border-gray-300 text-gray-600 hover:border-gray-400 bg-white'
+              }`}
+            >
+              {style}
+            </button>
+          )
+        })}
+      </div>
+      {selectedStyles.size > 0 && (
+        <p className="text-xs text-gray-400 mt-2">
+          {selectedStyles.size} style{selectedStyles.size !== 1 ? 's' : ''} selected · decorators sorted by match
+        </p>
+      )}
+    </div>
+  )
+}
+
 const BUDGET_CATEGORY_TO_SLUG: Record<string, string> = {
   'Venue': 'venues', 'Catering': 'caterers', 'Decoration': 'decorators',
   'Photography': 'photographers', 'Videography': 'videographers',
@@ -989,6 +1232,8 @@ export default function VendorsSection({
   const [loadingVendors, setLoadingVendors] = useState(true)
   const [menuCatalog, setMenuCatalog] = useState<MenuCatalogCategory[]>([])
   const [selectedDishes, setSelectedDishes] = useState<Set<string>>(new Set())
+  const [styleCatalog, setStyleCatalog] = useState<StyleCatalogItem[]>([])
+  const [selectedStyles, setSelectedStyles] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (initialCategory) setActiveCategory(initialCategory)
@@ -1007,7 +1252,8 @@ export default function VendorsSection({
     Promise.all([
       api.get<Vendor[]>(`/events/${eventId}/recommended-vendors`, token).catch(() => []),
       api.get<MenuCatalogCategory[]>('/vendors/menu-catalog', token).catch(() => []),
-    ]).then(([v, catalog]) => {
+      api.get<StyleCatalogItem[]>('/vendors/style-catalog', token).catch(() => []),
+    ]).then(([v, catalog, styles]) => {
       setVendors(v)
       const seen = new Set<string>()
       const cats = v
@@ -1015,6 +1261,7 @@ export default function VendorsSection({
         .filter((cat) => cat && !seen.has(cat.slug) && seen.add(cat.slug))
       setCategories(cats)
       setMenuCatalog(catalog)
+      setStyleCatalog(styles)
       setLoadingVendors(false)
     })
     fetchInterests()
@@ -1052,6 +1299,15 @@ export default function VendorsSection({
     })
   }
 
+  const toggleStyle = (style: string) => {
+    setSelectedStyles((prev) => {
+      const next = new Set(prev)
+      if (next.has(style)) next.delete(style)
+      else next.add(style)
+      return next
+    })
+  }
+
   const interestsByCategory = interests.reduce<Record<string, { name: string; items: Interest[] }>>(
     (acc, i) => {
       const cat = i.vendors?.vendor_categories
@@ -1073,18 +1329,32 @@ export default function VendorsSection({
     activeCategory === 'caterers' ||
     (activeCategory === '' && filteredVendors.every((v) => v.vendor_categories?.slug === 'caterers'))
 
+  const isDecoratorView = activeCategory === 'decorators'
+
   const sortedFiltered = [...filteredVendors]
     .filter((v) => {
-      if (selectedDishes.size === 0) return true
-      const isCaterer = v.vendor_categories?.slug === 'caterers'
-      if (!isCaterer) return true
-      return (v.menu_item_names ?? []).some((n) => selectedDishes.has(n))
+      const slug = v.vendor_categories?.slug
+      if (slug === 'caterers' && selectedDishes.size > 0) {
+        return (v.menu_item_names ?? []).some((n) => selectedDishes.has(n))
+      }
+      if (slug === 'decorators' && selectedStyles.size > 0) {
+        return (v.style_names ?? []).some((n) => selectedStyles.has(n))
+      }
+      return true
     })
     .sort((a, b) => {
-      if (selectedDishes.size === 0) return 0
-      const aScore = (a.menu_item_names ?? []).filter((n) => selectedDishes.has(n)).length
-      const bScore = (b.menu_item_names ?? []).filter((n) => selectedDishes.has(n)).length
-      return bScore - aScore
+      const slug = a.vendor_categories?.slug
+      if (slug === 'caterers' && selectedDishes.size > 0) {
+        const aScore = (a.menu_item_names ?? []).filter((n) => selectedDishes.has(n)).length
+        const bScore = (b.menu_item_names ?? []).filter((n) => selectedDishes.has(n)).length
+        return bScore - aScore
+      }
+      if (slug === 'decorators' && selectedStyles.size > 0) {
+        const aScore = (a.style_names ?? []).filter((n) => selectedStyles.has(n)).length
+        const bScore = (b.style_names ?? []).filter((n) => selectedStyles.has(n)).length
+        return bScore - aScore
+      }
+      return 0
     })
 
   const withinBudget = sortedFiltered.filter((v) => v.is_within_budget)
@@ -1181,6 +1451,14 @@ export default function VendorsSection({
           />
         )}
 
+        {isDecoratorView && styleCatalog.length > 0 && (
+          <StylePicker
+            catalog={styleCatalog}
+            selectedStyles={selectedStyles}
+            onToggle={toggleStyle}
+          />
+        )}
+
         {loadingVendors ? (
           <p className="text-sm text-gray-400">Loading...</p>
         ) : filteredVendors.length === 0 ? (
@@ -1203,6 +1481,7 @@ export default function VendorsSection({
                   slotsUsed={interests.filter((i) => i.vendors?.vendor_categories?.id === vendor.vendor_categories?.id).length}
                   onShortlist={() => setAddingVendor(vendor)}
                   selectedDishes={selectedDishes}
+                  selectedStyles={selectedStyles}
                 />
               ))}
             </div>
@@ -1225,6 +1504,7 @@ export default function VendorsSection({
                       slotsUsed={interests.filter((i) => i.vendors?.vendor_categories?.id === vendor.vendor_categories?.id).length}
                       onShortlist={() => setAddingVendor(vendor)}
                       selectedDishes={selectedDishes}
+                      selectedStyles={selectedStyles}
                     />
                   ))}
                 </div>

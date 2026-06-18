@@ -216,6 +216,141 @@ export class VendorPortalService {
     return { id: itemId }
   }
 
+  // ── Decorator styles & packages management ────────────────────────────────
+
+  async getDecoratorProfile(userId: string) {
+    const client = this.supabase.getAdminClient()
+    const vendor = await this.getVendorByUserId(userId)
+
+    const [stylesRes, packagesRes] = await Promise.all([
+      client
+        .from('decorator_styles')
+        .select('id, style, sort_order')
+        .eq('vendor_id', vendor.id)
+        .eq('is_active', true)
+        .order('sort_order'),
+      client
+        .from('decorator_packages')
+        .select('id, name, description, includes, sort_order, decorator_package_guest_tiers (id, min_guests, max_guests, price)')
+        .eq('vendor_id', vendor.id)
+        .eq('is_active', true)
+        .order('sort_order'),
+    ])
+
+    if (stylesRes.error) throw new InternalServerErrorException(stylesRes.error.message)
+    if (packagesRes.error) throw new InternalServerErrorException(packagesRes.error.message)
+
+    return { styles: stylesRes.data ?? [], packages: packagesRes.data ?? [] }
+  }
+
+  async addDecoratorStyle(userId: string, dto: { style: string }) {
+    const client = this.supabase.getAdminClient()
+    const vendor = await this.getVendorByUserId(userId)
+    if (!dto.style?.trim()) throw new BadRequestException('Style is required')
+
+    const { data, error } = await client
+      .from('decorator_styles')
+      .insert({ vendor_id: vendor.id, style: dto.style.trim() })
+      .select()
+      .single()
+    if (error) throw new InternalServerErrorException(error.message)
+    return data
+  }
+
+  async deleteDecoratorStyle(userId: string, styleId: string) {
+    const client = this.supabase.getAdminClient()
+    const vendor = await this.getVendorByUserId(userId)
+    const { error } = await client
+      .from('decorator_styles')
+      .delete()
+      .eq('id', styleId)
+      .eq('vendor_id', vendor.id)
+    if (error) throw new InternalServerErrorException(error.message)
+    return { id: styleId }
+  }
+
+  async addDecoratorPackage(
+    userId: string,
+    dto: { name: string; description?: string; includes?: string[]; tiers: { minGuests: number; maxGuests?: number; price: number }[] },
+  ) {
+    const client = this.supabase.getAdminClient()
+    const vendor = await this.getVendorByUserId(userId)
+
+    const { data: pkg, error } = await client
+      .from('decorator_packages')
+      .insert({
+        vendor_id: vendor.id,
+        name: dto.name,
+        description: dto.description ?? null,
+        includes: dto.includes ?? [],
+      })
+      .select()
+      .single()
+    if (error || !pkg) throw new InternalServerErrorException(error?.message ?? 'Failed to create package')
+
+    if (dto.tiers?.length) {
+      const tiers = dto.tiers.map((t) => ({
+        package_id: pkg.id,
+        min_guests: t.minGuests,
+        max_guests: t.maxGuests ?? null,
+        price: t.price,
+      }))
+      const { error: te } = await client.from('decorator_package_guest_tiers').insert(tiers)
+      if (te) throw new InternalServerErrorException(te.message)
+    }
+    return pkg
+  }
+
+  async updateDecoratorPackage(
+    userId: string,
+    packageId: string,
+    dto: { name?: string; description?: string; includes?: string[]; tiers?: { minGuests: number; maxGuests?: number; price: number }[] },
+  ) {
+    const client = this.supabase.getAdminClient()
+    const vendor = await this.getVendorByUserId(userId)
+
+    const updates: Record<string, unknown> = {}
+    if (dto.name !== undefined) updates.name = dto.name
+    if (dto.description !== undefined) updates.description = dto.description
+    if (dto.includes !== undefined) updates.includes = dto.includes
+
+    if (Object.keys(updates).length) {
+      const { error } = await client
+        .from('decorator_packages')
+        .update(updates)
+        .eq('id', packageId)
+        .eq('vendor_id', vendor.id)
+      if (error) throw new InternalServerErrorException(error.message)
+    }
+
+    if (dto.tiers !== undefined) {
+      await client.from('decorator_package_guest_tiers').delete().eq('package_id', packageId)
+      if (dto.tiers.length) {
+        const tiers = dto.tiers.map((t) => ({
+          package_id: packageId,
+          min_guests: t.minGuests,
+          max_guests: t.maxGuests ?? null,
+          price: t.price,
+        }))
+        const { error: te } = await client.from('decorator_package_guest_tiers').insert(tiers)
+        if (te) throw new InternalServerErrorException(te.message)
+      }
+    }
+    return { id: packageId }
+  }
+
+  async deleteDecoratorPackage(userId: string, packageId: string) {
+    const client = this.supabase.getAdminClient()
+    const vendor = await this.getVendorByUserId(userId)
+    const { error } = await client
+      .from('decorator_packages')
+      .update({ is_active: false })
+      .eq('id', packageId)
+      .eq('vendor_id', vendor.id)
+    if (error) throw new InternalServerErrorException(error.message)
+    return { id: packageId }
+  }
+
   private async getPlatformSettings(client: ReturnType<SupabaseService['getAdminClient']>) {
     const { data } = await client.from('platform_settings').select('key, value')
     const settings: Record<string, unknown> = {}

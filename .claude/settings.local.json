@@ -25,7 +25,11 @@
       "Bash(git -C /Users/sola.akanmu/Projects/owambe worktree remove --force .claude/worktrees/agent-a036dc3ec89d1f8e5)",
       "Bash(git -C /Users/sola.akanmu/Projects/owambe worktree remove --force .claude/worktrees/agent-ac3ed2b9350b2fdfa)",
       "Bash(git -C /Users/sola.akanmu/Projects/owambe branch -D worktree-agent-a036dc3ec89d1f8e5 worktree-agent-ac3ed2b9350b2fdfa)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(/Users/sola.akanmu/Projects/owambe/api/node_modules/.bin/tsc --noEmit -p tsconfig.json)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(ln -sf /Users/sola.akanmu/Projects/owambe/api/node_modules api/node_modules)",
+      "Bash(ln -sf /Users/sola.akanmu/Projects/owambe/web/node_modules web/node_modules)"
     ]
   }
 }

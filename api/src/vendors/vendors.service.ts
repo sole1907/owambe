@@ -126,6 +126,61 @@ export class VendorsService {
     return data ?? []
   }
 
+  async getStyleCatalog(city: string) {
+    const client = this.supabase.getClient()
+
+    const { data: decCategory } = await client
+      .from('vendor_categories')
+      .select('id')
+      .eq('slug', 'decorators')
+      .single()
+
+    if (!decCategory) return []
+
+    const { data: vendorIds } = await client
+      .from('vendors')
+      .select('id')
+      .eq('category_id', decCategory.id)
+      .eq('is_active', true)
+      .ilike('city', `%${city}%`)
+
+    if (!vendorIds?.length) return []
+
+    const ids = vendorIds.map((v: any) => v.id)
+    const { data, error } = await client
+      .from('decorator_styles')
+      .select('style')
+      .in('vendor_id', ids)
+      .eq('is_active', true)
+      .order('style')
+
+    if (error || !data) return []
+
+    // Deduplicate styles across all decorators in the city
+    const seen = new Set<string>()
+    for (const row of data) seen.add(row.style)
+
+    return Array.from(seen)
+      .sort()
+      .map((style) => ({ style }))
+  }
+
+  async getVendorPackages(slug: string) {
+    const client = this.supabase.getClient()
+    const { data: vendor } = await client.from('vendors').select('id').eq('slug', slug).single()
+    if (!vendor) return []
+
+    const { data, error } = await client
+      .from('decorator_packages')
+      .select('id, name, description, includes, sort_order, decorator_package_guest_tiers (id, min_guests, max_guests, price)')
+      .eq('vendor_id', vendor.id)
+      .eq('is_active', true)
+      .order('sort_order')
+
+    if (error) return []
+    return data ?? []
+  }
+
   async getVendor(slug: string) {
     const client = this.supabase.getClient()
 
@@ -186,7 +241,8 @@ export class VendorsService {
         price_min, price_max, service_fee, rating, review_count, capacity,
         photos, videos, whatsapp, phone, instagram, is_featured,
         vendor_categories (id, name, slug),
-        caterer_menu_items (name)`,
+        caterer_menu_items (name),
+        decorator_styles (style)`,
       )
       .eq('is_active', true)
       .order('is_featured', { ascending: false })
@@ -229,7 +285,12 @@ export class VendorsService {
         ? (v as any).caterer_menu_items.map((m: any) => m.name)
         : []
 
-      const enriched = { ...v, is_within_budget: fits, menu_item_names: menuItemNames }
+      // Flatten decorator style names for style-first discovery
+      const styleNames: string[] = Array.isArray((v as any).decorator_styles)
+        ? (v as any).decorator_styles.map((s: any) => s.style)
+        : []
+
+      const enriched = { ...v, is_within_budget: fits, menu_item_names: menuItemNames, style_names: styleNames }
       if (fits) {
         withinBudget.push(enriched)
       } else {

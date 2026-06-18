@@ -66,6 +66,19 @@ type MenuItemWithTiers = {
   caterer_menu_pricing_tiers: MenuPricingTier[]
 }
 
+type DecoratorPackage = {
+  id: string
+  name: string
+  description: string | null
+  includes: string[]
+  decorator_package_guest_tiers: {
+    id: string
+    min_guests: number
+    max_guests: number | null
+    price: number
+  }[]
+}
+
 function formatNaira(value: number) {
   return new Intl.NumberFormat('en-NG', {
     style: 'currency',
@@ -186,6 +199,7 @@ export default function VendorDetailPage() {
   const [vendor, setVendor] = useState<Vendor | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
   const [menuItems, setMenuItems] = useState<MenuItemWithTiers[]>([])
+  const [packages, setPackages] = useState<DecoratorPackage[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -194,10 +208,12 @@ export default function VendorDetailPage() {
       api.get<Vendor>(`/vendors/${slug}`, token),
       api.get<Review[]>(`/vendors/${slug}/reviews`, token).catch(() => []),
       api.get<MenuItemWithTiers[]>(`/vendors/${slug}/menu`, token).catch(() => []),
-    ]).then(([v, r, m]) => {
+      api.get<DecoratorPackage[]>(`/vendors/${slug}/packages`, token).catch(() => []),
+    ]).then(([v, r, m, p]) => {
       setVendor(v)
       setReviews(r)
       setMenuItems(m)
+      setPackages(p)
     }).finally(() => setLoading(false))
   }, [slug, token])
 
@@ -226,6 +242,7 @@ export default function VendorDetailPage() {
 
   const isVenue = vendor.vendor_categories?.slug === 'venues'
   const isCaterer = vendor.vendor_categories?.slug === 'caterers'
+  const isDecorator = vendor.vendor_categories?.slug === 'decorators'
 
   const menuByCategory = menuItems.reduce<Record<string, MenuItemWithTiers[]>>((acc, item) => {
     if (!acc[item.category]) acc[item.category] = []
@@ -322,6 +339,48 @@ export default function VendorDetailPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Packages (decorators only) */}
+      {isDecorator && packages.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3">Packages</h2>
+          <div className="space-y-3">
+            {packages.map((pkg) => {
+              const prices = pkg.decorator_package_guest_tiers.map((t) => t.price).sort((a, b) => a - b)
+              const minPrice = prices[0]
+              const maxPrice = prices[prices.length - 1]
+              const priceRange = minPrice && maxPrice && minPrice !== maxPrice
+                ? `${formatNaira(minPrice)} – ${formatNaira(maxPrice)}`
+                : minPrice
+                ? `From ${formatNaira(minPrice)}`
+                : null
+              return (
+                <div key={pkg.id} className="bg-gray-50 rounded-xl p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold text-gray-900">{pkg.name}</p>
+                    {priceRange && (
+                      <span className="text-xs text-gray-500 shrink-0">{priceRange}</span>
+                    )}
+                  </div>
+                  {pkg.description && (
+                    <p className="text-xs text-gray-500 mt-1">{pkg.description}</p>
+                  )}
+                  {pkg.includes.length > 0 && (
+                    <ul className="text-sm text-gray-600 mt-2 space-y-0.5">
+                      {pkg.includes.map((inc, i) => (
+                        <li key={i}>• {inc}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            Price depends on your guest count. Add this decorator to a shortlist to get the exact price for your event.
+          </p>
         </div>
       )}
 

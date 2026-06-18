@@ -40,6 +40,16 @@ export class VendorsController {
     return this.vendors.getVendorMenu(slug)
   }
 
+  @Get('style-catalog')
+  getStyleCatalog(@Query('city') city: string) {
+    return this.vendors.getStyleCatalog(city || '')
+  }
+
+  @Get(':slug/packages')
+  getVendorPackages(@Param('slug') slug: string) {
+    return this.vendors.getVendorPackages(slug)
+  }
+
   @Get(':slug')
   getVendor(@Param('slug') slug: string) {
     return this.vendors.getVendor(slug)

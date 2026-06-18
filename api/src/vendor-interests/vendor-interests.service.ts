@@ -153,6 +153,39 @@ export class VendorInterestsService {
       if (total > 0) computedOfferedPrice = total
     }
 
+    // For decorators: compute offered_price from the chosen package's guest tier
+    let decoratorSelection: { packageId: string; packageName: string; includes: string[]; guestCount: number; price: number } | null = null
+
+    if (dto.decoratorPackageId && v.vendor_categories?.slug === 'decorators') {
+      const { data: pkg } = await client
+        .from('decorator_packages')
+        .select('id, name, includes, decorator_package_guest_tiers (min_guests, max_guests, price)')
+        .eq('id', dto.decoratorPackageId)
+        .eq('vendor_id', dto.vendorId)
+        .eq('is_active', true)
+        .single()
+
+      if (pkg) {
+        const guestCount = dto.decoratorGuestCount ?? event.guest_count_estimate ?? 100
+        const tiers: any[] = (pkg as any).decorator_package_guest_tiers ?? []
+        const tier =
+          tiers
+            .sort((a: any, b: any) => b.min_guests - a.min_guests)
+            .find((t: any) => guestCount >= t.min_guests && (t.max_guests === null || guestCount <= t.max_guests)) ??
+          tiers.sort((a: any, b: any) => a.min_guests - b.min_guests)[0]
+        if (tier) {
+          computedOfferedPrice = tier.price
+          decoratorSelection = {
+            packageId: (pkg as any).id,
+            packageName: (pkg as any).name,
+            includes: (pkg as any).includes ?? [],
+            guestCount,
+            price: tier.price,
+          }
+        }
+      }
+    }
+
     const { data: interest, error: insertError } = await client
       .from('vendor_interests')
       .insert({
@@ -186,6 +219,18 @@ export class VendorInterestsService {
           subtotal,
         })),
       )
+    }
+
+    // Insert decorator package selection snapshot
+    if (decoratorSelection && interest) {
+      await client.from('vendor_interest_decorator_selections').insert({
+        interest_id: interest.id,
+        package_id: decoratorSelection.packageId,
+        package_name: decoratorSelection.packageName,
+        package_includes: decoratorSelection.includes,
+        guest_count: decoratorSelection.guestCount,
+        price: decoratorSelection.price,
+      })
     }
 
     if (initialStatus === 'pending' && v.email) {
