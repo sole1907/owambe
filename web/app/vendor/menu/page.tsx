@@ -34,18 +34,6 @@ type MenuItemFormData = {
   tiers: { min_servings: number; max_servings: number | null; price_per_serving: number }[]
 }
 
-function formatNaira(value: number) {
-  if (value >= 1_000_000) {
-    const str = (value / 1_000_000).toFixed(2).replace(/\.?0+$/, '')
-    return `₦${str}M`
-  }
-  if (value >= 1_000) {
-    const str = (value / 1_000).toFixed(1).replace(/\.?0+$/, '')
-    return `₦${str}k`
-  }
-  return `₦${value.toLocaleString()}`
-}
-
 function tiersSummary(tiers: PricingTier[]): string {
   if (!tiers || tiers.length === 0) return 'No pricing'
   const sorted = [...tiers].sort((a, b) => a.min_servings - b.min_servings)
