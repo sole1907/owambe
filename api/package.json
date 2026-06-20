@@ -92,6 +92,9 @@
         "statements": 70
       }
     },
+    "coveragePathIgnorePatterns": [
+      "/node_modules/"
+    ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
   }

@@ -88,6 +88,8 @@ export function makeSupabaseMock(fromMap: Record<string, ReturnType<typeof q>> =
 
   return {
     getClient: jest.fn().mockReturnValue(client),
+    getAuthClient: jest.fn().mockReturnValue(client),
+    getAdminClient: jest.fn().mockReturnValue(client),
     _mockFrom: mockFrom,
     _client: client,
   }
