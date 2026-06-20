@@ -502,7 +502,6 @@ export class VendorInterestsService {
     const organiserEmail = (interest.users as any)?.email
     const eventTitle = (interest.events as any)?.title ?? 'your event'
     const eventDate = (interest.events as any)?.event_date ?? ''
-    const eventCity = (interest.events as any)?.city ?? ''
 
     if (organiserEmail) {
       await this.email.sendVendorResponse({
