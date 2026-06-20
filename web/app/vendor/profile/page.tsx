@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/context/auth'
 import { api } from '@/lib/api'
 
@@ -32,6 +34,7 @@ type Profile = {
     partial_refund_percentage: number
   }
   vendor_categories: { slug: string } | null
+  photos: string[]
 }
 
 export default function VendorProfilePage() {
@@ -41,11 +44,16 @@ export default function VendorProfilePage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [photos, setPhotos] = useState<string[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!token) return
     api.get<Profile>('/vendor-portal/profile', token).then((p) => {
       setProfile(p)
+      setPhotos(p.photos ?? [])
       setForm({
         phone: p.phone ?? '',
         whatsapp: p.whatsapp ?? '',
@@ -74,6 +82,39 @@ export default function VendorProfilePage() {
         ? current.filter((m) => m !== method)
         : [...current, method],
     })
+  }
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !token) return
+    setUploading(true)
+    setUploadError('')
+    try {
+      const { signedUrl, publicUrl } = await api.post<{ signedUrl: string; publicUrl: string }>(
+        '/vendor-portal/photos/upload-url',
+        { filename: file.name },
+        token,
+      )
+      const uploadRes = await fetch(signedUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } })
+      if (!uploadRes.ok) throw new Error('Upload failed')
+      const { photos: updated } = await api.post<{ photos: string[] }>('/vendor-portal/photos', { url: publicUrl }, token)
+      setPhotos(updated)
+    } catch {
+      setUploadError('Failed to upload photo. Please try again.')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handlePhotoDelete = async (url: string) => {
+    if (!token) return
+    try {
+      const { photos: updated } = await api.delete<{ photos: string[] }>(`/vendor-portal/photos?url=${encodeURIComponent(url)}`, token)
+      setPhotos(updated)
+    } catch {
+      setUploadError('Failed to remove photo.')
+    }
   }
 
   const handleSave = async (e: React.FormEvent) => {
@@ -147,6 +188,46 @@ export default function VendorProfilePage() {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
             />
           </div>
+        </section>
+
+        {/* Photos */}
+        <section>
+          <h2 className="text-sm font-semibold text-gray-900 mb-1 pb-2 border-b border-gray-100">Photos</h2>
+          <p className="text-xs text-gray-500 mb-4">These are shown on your public profile. Upload high-quality images of your work.</p>
+
+          {uploadError && <p className="text-xs text-red-600 mb-3">{uploadError}</p>}
+
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            {photos.map((url) => (
+              <div key={url} className="relative group aspect-square rounded-xl overflow-hidden bg-gray-100">
+                <img src={url} alt="" className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => handlePhotoDelete(url)}
+                  className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-medium"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="aspect-square rounded-xl border-2 border-dashed border-gray-300 hover:border-gray-400 flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-gray-600 transition disabled:opacity-50"
+            >
+              <span className="text-2xl leading-none">{uploading ? '…' : '+'}</span>
+              <span className="text-xs">{uploading ? 'Uploading' : 'Add photo'}</span>
+            </button>
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handlePhotoUpload}
+          />
         </section>
 
         {/* Pricing */}

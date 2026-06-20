@@ -51,6 +51,23 @@ export class VendorPortalController {
     return this.portal.getSettings()
   }
 
+  // ── Photo management ─────────────────────────────────────────────────────
+
+  @Post('photos/upload-url')
+  getPhotoUploadUrl(@CurrentUser() user: any, @Body() body: { filename: string }) {
+    return this.portal.getPhotoUploadUrl(user.id, body.filename)
+  }
+
+  @Post('photos')
+  addPhoto(@CurrentUser() user: any, @Body() body: { url: string }) {
+    return this.portal.addPhoto(user.id, body.url)
+  }
+
+  @Delete('photos')
+  deletePhoto(@CurrentUser() user: any, @Query('url') url: string) {
+    return this.portal.deletePhoto(user.id, url)
+  }
+
   // ── Caterer menu management ───────────────────────────────────────────────
 
   @Get('menu')

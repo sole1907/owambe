@@ -355,6 +355,58 @@ export class VendorPortalService {
     return { id: packageId }
   }
 
+  // ── Photo management ─────────────────────────────────────────────────────────
+
+  async getPhotoUploadUrl(userId: string, filename: string) {
+    const client = this.supabase.getAdminClient()
+    const vendor = await this.getVendorByUserId(userId)
+
+    const ext = filename.split('.').pop()?.toLowerCase() ?? 'jpg'
+    const path = `${vendor.id}/${Date.now()}.${ext}`
+
+    const { data, error } = await client.storage
+      .from('vendor-photos')
+      .createSignedUploadUrl(path)
+
+    if (error) throw new InternalServerErrorException(error.message)
+
+    const { data: { publicUrl } } = client.storage
+      .from('vendor-photos')
+      .getPublicUrl(path)
+
+    return { signedUrl: data.signedUrl, publicUrl }
+  }
+
+  async addPhoto(userId: string, url: string) {
+    const client = this.supabase.getAdminClient()
+    const vendor = await this.getVendorByUserId(userId)
+
+    const photos = [...((vendor as any).photos ?? []), url]
+    const { error } = await client.from('vendors').update({ photos }).eq('id', vendor.id)
+    if (error) throw new InternalServerErrorException(error.message)
+    return { photos }
+  }
+
+  async deletePhoto(userId: string, url: string) {
+    const client = this.supabase.getAdminClient()
+    const vendor = await this.getVendorByUserId(userId)
+
+    const photos = ((vendor as any).photos ?? []).filter((p: string) => p !== url)
+    const { error } = await client.from('vendors').update({ photos }).eq('id', vendor.id)
+    if (error) throw new InternalServerErrorException(error.message)
+
+    // Best-effort removal from storage
+    try {
+      const prefix = '/storage/v1/object/public/vendor-photos/'
+      const idx = url.indexOf(prefix)
+      if (idx !== -1) {
+        await client.storage.from('vendor-photos').remove([url.slice(idx + prefix.length)])
+      }
+    } catch {}
+
+    return { photos }
+  }
+
   // ── Payment structure management ─────────────────────────────────────────────
 
   async getPaymentStructure(userId: string) {
