@@ -70,6 +70,24 @@ export class VendorInterestsController {
     return this.service.removeInterest(eventId, interestId, user.id)
   }
 
+  @Post('events/:eventId/vendor-interests/:interestId/cancel')
+  cancelBooking(
+    @Param('eventId') eventId: string,
+    @Param('interestId') interestId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.service.cancelBookingAsOrganiser(eventId, interestId, user.id)
+  }
+
+  @Get('events/:eventId/vendor-interests/:interestId/cancellation')
+  getCancellationStatus(
+    @Param('eventId') eventId: string,
+    @Param('interestId') interestId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.service.getCancellationStatus(eventId, interestId, user.id)
+  }
+
   // ─── Vendor portal endpoints ────────────────────────────────────────────────
 
   @Get('vendor-portal/inquiry-counts')

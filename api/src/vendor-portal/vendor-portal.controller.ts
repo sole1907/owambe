@@ -104,4 +104,37 @@ export class VendorPortalController {
   deleteDecoratorPackage(@CurrentUser() user: any, @Param('id') id: string) {
     return this.portal.deleteDecoratorPackage(user.id, id)
   }
+
+  // ── Payment structure management ──────────────────────────────────────────
+
+  @Get('payment-structure')
+  getPaymentStructure(@CurrentUser() user: any) {
+    return this.portal.getPaymentStructure(user.id)
+  }
+
+  @Post('payment-structure')
+  savePaymentStructure(@CurrentUser() user: any, @Body() body: any) {
+    return this.portal.savePaymentStructure(user.id, body)
+  }
+
+  @Post('payment-structure/agree-terms')
+  agreeToPaymentTerms(@CurrentUser() user: any) {
+    return this.portal.agreeToPaymentTerms(user.id)
+  }
+
+  // ── Vendor cancellation ───────────────────────────────────────────────────
+
+  @Post('inquiries/:id/cancel')
+  cancelBooking(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.portal.cancelBookingAsVendor(user.id, id, body.reason)
+  }
+
+  @Post('inquiries/:id/request-extension')
+  requestExtension(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.portal.requestCancellationExtension(user.id, id)
+  }
 }

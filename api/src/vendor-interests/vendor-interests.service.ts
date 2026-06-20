@@ -35,7 +35,7 @@ export class VendorInterestsService {
         vendor_response_at, vendor_notes, created_at,
         offered_price, counter_price, agreed_price, is_final_offer,
         vendors (id, name, slug, city, price_min, price_max, rating, photos,
-          commitment_fee_percentage,
+          commitment_fee_percentage, email, phone, whatsapp,
           vendor_categories (id, name, slug))
       `)
       .eq('event_id', eventId)
@@ -513,9 +513,131 @@ export class VendorInterestsService {
         eventDate,
         available: dto.available,
         vendorNotes: dto.notes,
+        counterPrice: dto.counterPrice,
       })
     }
 
     return data
+  }
+
+  // ── Organiser cancellation ────────────────────────────────────────────────────
+
+  async cancelBookingAsOrganiser(eventId: string, interestId: string, userId: string) {
+    const client = this.supabase.getAdminClient()
+
+    const { data: interest, error: ie } = await client
+      .from('vendor_interests')
+      .select(`
+        id, status, vendor_id,
+        events!inner (id, user_id),
+        vendors (name, email)
+      `)
+      .eq('id', interestId)
+      .eq('event_id', eventId)
+      .single()
+
+    if (ie || !interest) throw new NotFoundException('Booking not found')
+    if ((interest.events as any)?.user_id !== userId) throw new BadRequestException('Not authorised')
+    if (!['available', 'committed', 'quoted'].includes(interest.status)) {
+      throw new BadRequestException('This booking cannot be cancelled in its current state')
+    }
+
+    // What's still held vs already released
+    const { data: schedule } = await client
+      .from('interest_payment_schedule')
+      .select('bucket, amount_kobo, status')
+      .eq('interest_id', interestId)
+
+    const heldKobo = (schedule ?? [])
+      .filter((s) => s.status === 'scheduled')
+      .reduce((sum, s) => sum + s.amount_kobo, 0)
+
+    const releasedKobo = (schedule ?? [])
+      .filter((s) => s.status === 'released')
+      .reduce((sum, s) => sum + s.amount_kobo, 0)
+
+    // Refund everything still held
+    if (heldKobo > 0) {
+      await client
+        .from('interest_payment_schedule')
+        .update({ status: 'refunded', refunded_at: new Date().toISOString() })
+        .eq('interest_id', interestId)
+        .eq('status', 'scheduled')
+    }
+
+    await client
+      .from('vendor_interests')
+      .update({ status: 'cancelled', cancelled_at: new Date().toISOString(), cancelled_by: 'organiser' })
+      .eq('id', interestId)
+
+    const { data: cancellation, error: ce } = await client
+      .from('booking_cancellations')
+      .insert({
+        interest_id: interestId,
+        cancelled_by: 'organiser',
+        held_funds_returned_kobo: heldKobo,
+        outstanding_kobo: 0, // organiser cancellations never create a debt
+        status: 'no_outstanding',
+      })
+      .select()
+      .single()
+
+    if (ce || !cancellation) throw new InternalServerErrorException('Failed to record cancellation')
+
+    const heldNaira = Math.round(heldKobo / 100).toLocaleString()
+    const forfeitedNaira = Math.round(releasedKobo / 100).toLocaleString()
+
+    const events: { event_type: string; message: string }[] = [
+      { event_type: 'cancelled', message: 'You cancelled this booking.' },
+    ]
+
+    if (heldKobo > 0) {
+      events.push({ event_type: 'held_returned', message: `₦${heldNaira} returned to you (funds still held by Owambe).` })
+    }
+    if (releasedKobo > 0) {
+      events.push({ event_type: 'forfeited', message: `₦${forfeitedNaira} already released to the vendor per their payment schedule and cannot be recovered.` })
+    }
+
+    await client.from('cancellation_events').insert(
+      events.map((e) => ({ ...e, cancellation_id: cancellation.id }))
+    )
+
+    // Notify vendor
+    const vendorEmail = (interest.vendors as any)?.email
+    if (vendorEmail) {
+      await this.email.sendOrganiserCancelledToVendor({
+        to: vendorEmail,
+        vendorName: (interest.vendors as any)?.name ?? 'there',
+        organizerName: 'The organiser',
+        eventTitle: (interest.events as any)?.title ?? 'the event',
+        eventDate: (interest.events as any)?.event_date ?? '',
+      })
+    }
+
+    return { heldKobo, forfeitedKobo: releasedKobo }
+  }
+
+  async getCancellationStatus(eventId: string, interestId: string, userId: string) {
+    const client = this.supabase.getAdminClient()
+
+    const { data: interest, error: ie } = await client
+      .from('vendor_interests')
+      .select('id, events!inner(user_id)')
+      .eq('id', interestId)
+      .eq('event_id', eventId)
+      .single()
+
+    if (ie || !interest) throw new NotFoundException('Booking not found')
+    if ((interest.events as any)?.user_id !== userId) throw new BadRequestException('Not authorised')
+
+    const { data: cancellation, error: ce } = await client
+      .from('booking_cancellations')
+      .select('*, cancellation_events (event_type, message, created_at)')
+      .eq('interest_id', interestId)
+      .order('created_at', { referencedTable: 'cancellation_events', ascending: true })
+      .single()
+
+    if (ce || !cancellation) throw new NotFoundException('No cancellation found for this booking')
+    return cancellation
   }
 }

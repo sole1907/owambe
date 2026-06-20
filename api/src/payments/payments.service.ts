@@ -219,7 +219,7 @@ export class PaymentsService {
     // Get payment record
     const { data: payment } = await client
       .from('commitment_payments')
-      .select('id, status, interest_id, event_id, vendor_id, user_id, amount_kobo')
+      .select('id, status, interest_id, event_id, vendor_id, user_id, amount_kobo, commitment_pct')
       .eq('paystack_reference', reference)
       .single()
 
@@ -232,11 +232,15 @@ export class PaymentsService {
       .update({ status: 'success', paid_at: txn.paid_at })
       .eq('id', payment.id)
 
-    // Mark vendor interest as committed
+    // Snapshot contract amount in kobo
+    const contractKobo = payment.amount_kobo / (payment.commitment_pct / 100)
     await client
       .from('vendor_interests')
-      .update({ status: 'committed' })
+      .update({ status: 'committed', total_contract_kobo: Math.round(contractKobo) })
       .eq('id', payment.interest_id)
+
+    // Build payment release schedule from vendor's payment structure
+    await this.createPaymentSchedule(client, payment.interest_id, payment.vendor_id, Math.round(contractKobo))
 
     // Get vendor + event + user info for emails
     const { data: vendor } = await client
@@ -309,6 +313,58 @@ export class PaymentsService {
         this.logger.error(`Webhook confirmPayment failed for ${event.data.reference}`, err)
       }
     }
+  }
+
+  // ── Build release schedule when booking is committed ─────────────────────────
+
+  private async createPaymentSchedule(
+    client: ReturnType<SupabaseService['getAdminClient']>,
+    interestId: string,
+    vendorId: string,
+    totalKobo: number,
+  ) {
+    // Get vendor payment structure + event date
+    const [structureRes, interestRes] = await Promise.all([
+      client.from('vendor_payment_structures').select('*').eq('vendor_id', vendorId).single(),
+      client.from('vendor_interests').select('event_date').eq('id', interestId).single(),
+    ])
+
+    // Fall back to legacy commitment_fee_percentage if no structure configured
+    if (!structureRes.data || !structureRes.data.is_active) return
+
+    const s = structureRes.data
+    const eventDate = interestRes.data?.event_date ? new Date(interestRes.data.event_date) : null
+
+    const buckets: { bucket: string; pct: number; scheduled_at: Date }[] = []
+
+    if (eventDate) {
+      const commitmentRelease = new Date(eventDate)
+      commitmentRelease.setDate(commitmentRelease.getDate() - s.commitment_release_days)
+      buckets.push({ bucket: 'commitment', pct: s.commitment_pct, scheduled_at: commitmentRelease })
+
+      if (s.materials_pct > 0) {
+        const materialsRelease = new Date(eventDate)
+        materialsRelease.setDate(materialsRelease.getDate() - s.materials_release_days)
+        buckets.push({ bucket: 'materials', pct: s.materials_pct, scheduled_at: materialsRelease })
+      }
+
+      const balanceRelease = new Date(eventDate)
+      balanceRelease.setHours(balanceRelease.getHours() + s.balance_release_hours)
+      buckets.push({ bucket: 'balance', pct: s.balance_pct, scheduled_at: balanceRelease })
+    }
+
+    if (buckets.length === 0) return
+
+    const rows = buckets.map((b) => ({
+      interest_id: interestId,
+      bucket: b.bucket,
+      amount_kobo: Math.round(totalKobo * b.pct / 100),
+      pct_snapshot: b.pct,
+      scheduled_at: b.scheduled_at.toISOString(),
+      status: 'scheduled',
+    }))
+
+    await client.from('interest_payment_schedule').insert(rows)
   }
 
   // ── Get payment status for a reference ───────────────────────────────────────

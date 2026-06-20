@@ -23,12 +23,15 @@ type Vendor = {
   vendor_categories: Category
   menu_item_names: string[]
   style_names: string[]
+  email: string | null
+  phone: string | null
+  whatsapp: string | null
 }
 
 type Interest = {
   id: string
   preference_rank: number // 1=A, 2=B, 3=C
-  status: 'pending' | 'available' | 'quoted' | 'unavailable' | 'expired' | 'committed'
+  status: 'pending' | 'available' | 'quoted' | 'unavailable' | 'expired' | 'committed' | 'cancelled'
   event_date: string | null
   expires_at: string | null
   vendor_response_at: string | null
@@ -41,6 +44,21 @@ type Interest = {
     vendor_categories: Category
     commitment_fee_percentage: number
   }
+}
+
+type CancellationStatus = {
+  cancelled_by: 'organiser' | 'vendor'
+  held_funds_returned_kobo: number
+  outstanding_kobo: number
+  repayment_deadline: string | null
+  extension_granted: boolean
+  repayment_completed_at: string | null
+  status: 'pending' | 'extension_granted' | 'repaid' | 'escalated' | 'no_outstanding'
+  cancellation_events: {
+    event_type: string
+    message: string
+    created_at: string
+  }[]
 }
 
 type MenuCatalogCategory = { category: string; items: string[] }
@@ -144,6 +162,7 @@ const STATUS_STYLES: Record<Interest['status'], string> = {
   unavailable: 'bg-red-100 text-red-800',
   expired: 'bg-gray-100 text-gray-500',
   committed: 'bg-blue-100 text-blue-800',
+  cancelled: 'bg-red-100 text-red-800',
 }
 
 const STATUS_LABEL: Record<Interest['status'], string> = {
@@ -153,6 +172,15 @@ const STATUS_LABEL: Record<Interest['status'], string> = {
   unavailable: 'Not available',
   expired: 'Expired',
   committed: 'Committed ✓',
+  cancelled: 'Cancelled',
+}
+
+const CANCELLATION_STATUS_BADGE: Record<CancellationStatus['status'], { label: string; style: string }> = {
+  pending: { label: 'Awaiting vendor repayment', style: 'bg-amber-100 text-amber-800' },
+  extension_granted: { label: 'Extension granted', style: 'bg-amber-100 text-amber-800' },
+  repaid: { label: 'Fully refunded', style: 'bg-green-100 text-green-800' },
+  escalated: { label: 'Escalated', style: 'bg-red-100 text-red-800' },
+  no_outstanding: { label: 'Resolved', style: 'bg-green-100 text-green-800' },
 }
 
 declare global {
@@ -434,24 +462,125 @@ function CounterNegotiationRow({
   )
 }
 
+function CancellationThread({
+  interest,
+  eventId,
+}: {
+  interest: Interest
+  eventId: string
+}) {
+  const { token } = useAuth()
+  const [data, setData] = useState<CancellationStatus | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!token) return
+    api
+      .get<CancellationStatus>(
+        `/events/${eventId}/vendor-interests/${interest.id}/cancellation`,
+        token,
+      )
+      .then((res) => setData(res))
+      .catch(() => setError('Could not load cancellation details.'))
+      .finally(() => setLoading(false))
+  }, [token, eventId, interest.id])
+
+  if (loading) {
+    return (
+      <div className="mt-3 pl-10">
+        <p className="text-xs text-gray-400">Loading cancellation details...</p>
+      </div>
+    )
+  }
+
+  if (error || !data) {
+    return (
+      <div className="mt-3 pl-10">
+        <p className="text-xs text-red-500">{error || 'No cancellation data found.'}</p>
+      </div>
+    )
+  }
+
+  const badge = CANCELLATION_STATUS_BADGE[data.status]
+
+  return (
+    <div className="mt-3 pl-10">
+      <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+        <div className="flex items-center gap-2 mb-3">
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge.style}`}>
+            {badge.label}
+          </span>
+        </div>
+
+        {data.cancellation_events.length === 0 ? (
+          <p className="text-xs text-gray-400">No events yet.</p>
+        ) : (
+          <ol className="space-y-2">
+            {data.cancellation_events.map((ev, idx) => (
+              <li key={idx} className="flex gap-2.5">
+                <div className="mt-1 w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-700">{ev.message}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {new Date(ev.created_at).toLocaleString('en-NG', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function ShortlistCard({
   interest,
   eventId,
   onRemove,
   onCommitted,
+  onCancelled,
 }: {
   interest: Interest
   eventId: string
   onRemove: (id: string) => void
   onCommitted: (id: string) => void
+  onCancelled: (id: string) => void
 }) {
   const { token } = useAuth()
   const vendor = interest.vendors
   const rank = RANK_LABEL[interest.preference_rank - 1]
   const [paying, setPaying] = useState(false)
   const [payError, setPayError] = useState('')
+  const [confirmCancel, setConfirmCancel] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [cancelError, setCancelError] = useState('')
 
   if (!vendor) return null
+
+  const handleCancel = async () => {
+    if (!token) return
+    setCancelling(true)
+    setCancelError('')
+    try {
+      await api.post(
+        `/events/${eventId}/vendor-interests/${interest.id}/cancel`,
+        {},
+        token,
+      )
+      onCancelled(interest.id)
+    } catch (err) {
+      setCancelError(err instanceof Error ? err.message : 'Could not cancel booking.')
+      setCancelling(false)
+    }
+  }
 
   const priceBasis = interest.agreed_price ?? interest.offered_price
   const commitmentFee = priceBasis && vendor.commitment_fee_percentage
@@ -515,6 +644,8 @@ function ShortlistCard({
       ? 'border-blue-200 bg-blue-50'
       : interest.status === 'available'
       ? 'border-green-200 bg-green-50'
+      : interest.status === 'cancelled'
+      ? 'border-red-200 bg-red-50'
       : 'border-gray-200 bg-white'
 
   return (
@@ -561,9 +692,34 @@ function ShortlistCard({
           {interest.vendor_notes && (
             <p className="text-xs text-gray-600 mt-1 italic">&ldquo;{interest.vendor_notes}&rdquo;</p>
           )}
+
+          {['available', 'quoted', 'committed'].includes(interest.status) && (
+            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+              {vendor.email && (
+                <a href={`mailto:${vendor.email}`} className="text-xs text-blue-600 hover:underline">
+                  {vendor.email}
+                </a>
+              )}
+              {vendor.whatsapp && (
+                <a
+                  href={`https://wa.me/${vendor.whatsapp.replace(/\D/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-green-700 hover:underline"
+                >
+                  WhatsApp: {vendor.whatsapp}
+                </a>
+              )}
+              {vendor.phone && !vendor.whatsapp && (
+                <a href={`tel:${vendor.phone}`} className="text-xs text-gray-600 hover:underline">
+                  {vendor.phone}
+                </a>
+              )}
+            </div>
+          )}
         </div>
 
-        {interest.status !== 'committed' && (
+        {interest.status !== 'committed' && interest.status !== 'cancelled' && (
           <button
             onClick={() => onRemove(interest.id)}
             className="text-gray-300 hover:text-red-400 transition text-sm shrink-0 mt-0.5"
@@ -584,7 +740,7 @@ function ShortlistCard({
         />
       )}
 
-      {interest.status === 'available' && (
+      {interest.status === 'available' && !confirmCancel && (
         <div className="mt-3 pl-10">
           {payError && <p className="text-xs text-red-600 mb-2">{payError}</p>}
           <button
@@ -602,6 +758,47 @@ function ShortlistCard({
             {vendor.commitment_fee_percentage}% of {priceBasis ? formatNaira(priceBasis) : 'agreed price'} · held until after your event
           </p>
         </div>
+      )}
+
+      {['available', 'quoted', 'committed'].includes(interest.status) && !confirmCancel && (
+        <div className="mt-2 pl-10">
+          <button
+            onClick={() => setConfirmCancel(true)}
+            className="text-xs text-gray-400 hover:text-red-500 transition"
+          >
+            Cancel booking
+          </button>
+        </div>
+      )}
+
+      {confirmCancel && (
+        <div className="mt-3 pl-10 bg-red-50 border border-red-200 rounded-xl p-3">
+          <p className="text-xs text-red-800 mb-3">
+            Cancelling will return any funds still held by Owambe to you immediately. Amounts already
+            released to the vendor per their payment schedule cannot be recovered.
+          </p>
+          {cancelError && <p className="text-xs text-red-600 mb-2">{cancelError}</p>}
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={handleCancel}
+              disabled={cancelling}
+              className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 disabled:opacity-50 transition font-medium"
+            >
+              {cancelling ? 'Cancelling...' : 'Yes, cancel booking'}
+            </button>
+            <button
+              onClick={() => { setConfirmCancel(false); setCancelError('') }}
+              disabled={cancelling}
+              className="text-xs border border-gray-300 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition font-medium"
+            >
+              Keep booking
+            </button>
+          </div>
+        </div>
+      )}
+
+      {interest.status === 'cancelled' && (
+        <CancellationThread interest={interest} eventId={eventId} />
       )}
     </div>
   )
@@ -1290,6 +1487,12 @@ export default function VendorsSection({
     )
   }
 
+  const handleCancelled = (interestId: string) => {
+    setInterests((prev) =>
+      prev.map((i) => (i.id === interestId ? { ...i, status: 'cancelled' as const } : i)),
+    )
+  }
+
   const toggleDish = (dish: string) => {
     setSelectedDishes((prev) => {
       const next = new Set(prev)
@@ -1391,6 +1594,7 @@ export default function VendorsSection({
                         eventId={eventId}
                         onRemove={removing === interest.id ? () => {} : handleRemove}
                         onCommitted={handleCommitted}
+                        onCancelled={handleCancelled}
                       />
                     ))}
                 </div>

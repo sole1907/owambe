@@ -37,7 +37,7 @@ type VendorInquiryEmailParams = {
   eventDate: string
   eventCity: string
   expiresAt: string
-  offeredPrice?: string | null // formatted Naira string, e.g. "₦1,500,000"
+  offeredPrice?: string | null
 }
 
 type VendorResponseEmailParams = {
@@ -48,6 +48,7 @@ type VendorResponseEmailParams = {
   eventDate: string
   available: boolean
   vendorNotes?: string
+  counterPrice?: number
 }
 
 type CommitmentConfirmedOrganizerParams = {
@@ -78,16 +79,63 @@ type ReviewReminderParams = {
   isLast: boolean
 }
 
+type VendorCancelledParams = {
+  to: string // organiser email
+  organizerName: string
+  vendorName: string
+  eventTitle: string
+  eventDate: string
+  heldRefundedNaira: number
+  outstandingNaira: number
+  repaymentDeadline: string | null
+}
+
+type OrganiserCancelledParams = {
+  to: string // vendor email
+  vendorName: string
+  organizerName: string
+  eventTitle: string
+  eventDate: string
+}
+
+type RepaymentDemandParams = {
+  to: string // vendor email
+  vendorName: string
+  organizerName: string
+  eventTitle: string
+  outstandingNaira: number
+  repaymentDeadline: string
+}
+
+type ExtensionGrantedParams = {
+  to: string // organiser email
+  organizerName: string
+  vendorName: string
+  eventTitle: string
+  newDeadline: string
+}
+
 // ─── Shared base template ────────────────────────────────────────────────────
 
-function base(content: string): string {
+function base(content: string, interceptNote?: string): string {
+  const intercept = interceptNote
+    ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;margin:0 auto 12px;">
+        <tr>
+          <td style="background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:10px 16px;">
+            <p style="margin:0;font-size:12px;color:#92400e;">
+              📬 <strong>Test intercept:</strong> ${interceptNote}
+            </p>
+          </td>
+        </tr>
+      </table>`
+    : ''
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
   <style>
     @media only screen and (max-width: 600px) {
       .wrapper { padding: 16px !important; }
@@ -109,6 +157,8 @@ function base(content: string): string {
             </td>
           </tr>
         </table>
+
+        ${intercept}
 
         <!-- Card -->
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;margin:0 auto;">
@@ -182,6 +232,14 @@ function primaryBtn(label: string, url: string): string {
   </table>`
 }
 
+function fmt(n: number): string {
+  return new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: 'NGN',
+    maximumFractionDigits: 0,
+  }).format(n)
+}
+
 // ─── Email service ────────────────────────────────────────────────────────────
 
 @Injectable()
@@ -189,6 +247,7 @@ export class EmailService {
   private resend: Resend | null = null
   private readonly logger = new Logger(EmailService.name)
   private readonly from = 'Owambe <invites@owambe.app>'
+  private readonly testIntercept: string | null = null
 
   constructor(private config: ConfigService) {
     const key = this.config.get<string>('RESEND_API_KEY')
@@ -196,6 +255,30 @@ export class EmailService {
       this.resend = new Resend(key)
     } else {
       this.logger.warn('RESEND_API_KEY is not set — emails will not be sent')
+    }
+    this.testIntercept = this.config.get<string>('testEmailIntercept') ?? null
+  }
+
+  // Intercept @owambe.test addresses — redirect to TEST_EMAIL_INTERCEPT
+  private resolve(email: string): { to: string; note: string | undefined } {
+    if (email.endsWith('@owambe.test') && this.testIntercept) {
+      return { to: this.testIntercept, note: `Originally addressed to ${email} (test vendor)` }
+    }
+    return { to: email, note: undefined }
+  }
+
+  private async send(to: string, subject: string, content: string) {
+    if (!this.resend) return
+    const { to: resolvedTo, note } = this.resolve(to)
+    try {
+      await this.resend.emails.send({
+        from: 'onboarding@resend.dev', //this.from,
+        to: resolvedTo,
+        subject,
+        html: base(content, note),
+      })
+    } catch (err) {
+      this.logger.error(`Failed to send "${subject}" to ${resolvedTo}`, err)
     }
   }
 
@@ -209,7 +292,6 @@ export class EmailService {
     const content = `
       ${heading("You're invited! 🎉")}
       ${subtext(`Hi <strong style="color:#111;">${params.guestName}</strong>, you have a personal invite to:`)}
-
       ${eventCard(params.eventTitle, dateStr, params.eventCity)}
 
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:24px;">
@@ -218,49 +300,26 @@ export class EmailService {
             <p style="margin:0;font-size:14px;color:#166534;">
               <strong>Your allocation:</strong>
               ${spots} spot${spots !== 1 ? 's' : ''}
-              ${
-                plusOnes > 0
-                  ? `&nbsp;&mdash;&nbsp; you + ${plusOnes} guest${plusOnes !== 1 ? 's' : ''}`
-                  : `&nbsp;&mdash;&nbsp; just you`
-              }
+              ${plusOnes > 0 ? `&nbsp;&mdash;&nbsp; you + ${plusOnes} guest${plusOnes !== 1 ? 's' : ''}` : `&nbsp;&mdash;&nbsp; just you`}
             </p>
           </td>
         </tr>
       </table>
 
-      <!-- QR code -->
-      <p style="margin:0 0 12px;font-size:14px;color:#6b7280;text-align:center;">
-        Show this QR code at the entrance
-      </p>
+      <p style="margin:0 0 12px;font-size:14px;color:#6b7280;text-align:center;">Show this QR code at the entrance</p>
       <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 28px;">
         <tr>
           <td style="padding:12px;background:#ffffff;border-radius:12px;border:1px solid #e5e7eb;">
-            <img class="qr-img" src="${params.qrCodeUrl}" alt="Your invite QR code"
-                 width="180" height="180"
-                 style="display:block;width:180px;height:180px;" />
+            <img class="qr-img" src="${params.qrCodeUrl}" alt="Your invite QR code" width="180" height="180" style="display:block;width:180px;height:180px;" />
           </td>
         </tr>
       </table>
 
       ${primaryBtn('View my invite', params.inviteUrl)}
-
       ${divider()}
-      <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
-        Can't attend or need more spots? Visit your invite page above.
-      </p>
+      <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">Can't attend or need more spots? Visit your invite page above.</p>
     `
-
-    if (!this.resend) return
-    try {
-      await this.resend.emails.send({
-        from: this.from,
-        to: params.to,
-        subject: `You're invited to ${params.eventTitle}`,
-        html: base(content),
-      })
-    } catch (err) {
-      this.logger.error('Failed to send invite email', err)
-    }
+    await this.send(params.to, `You're invited to ${params.eventTitle}`, content)
   }
 
   // ── 2. Plus-one request notification to host ─────────────────────────────────
@@ -278,223 +337,168 @@ export class EmailService {
               <strong>${params.guestName}</strong> is requesting
               ${pill(`+${params.requestedCount} extra spot${params.requestedCount !== 1 ? 's' : ''}`)}
             </p>
-            <p style="margin:6px 0 0;font-size:13px;color:#92400e;">
-              Event: <strong>${params.eventTitle}</strong>
-            </p>
+            <p style="margin:6px 0 0;font-size:13px;color:#92400e;">Event: <strong>${params.eventTitle}</strong></p>
           </td>
         </tr>
       </table>
 
-      <p style="margin:0 0 20px;font-size:14px;color:#6b7280;text-align:center;">
-        Review and approve or decline in the app
-      </p>
-
+      <p style="margin:0 0 20px;font-size:14px;color:#6b7280;text-align:center;">Review and approve or decline in the app</p>
       ${primaryBtn('Review request', params.approveUrl)}
     `
-
-    if (!this.resend) return
-    try {
-      await this.resend.emails.send({
-        from: this.from,
-        to: params.to,
-        subject: `Plus-one request from ${params.guestName} — ${params.eventTitle}`,
-        html: base(content),
-      })
-    } catch (err) {
-      this.logger.error('Failed to send plus-one request email', err)
-    }
+    await this.send(
+      params.to,
+      `Plus-one request from ${params.guestName} — ${params.eventTitle}`,
+      content,
+    )
   }
 
   // ── 3. Plus-one outcome to guest ─────────────────────────────────────────────
 
   async sendPlusOneOutcomeToGuest(params: PlusOneOutcomeEmailParams) {
     const approved = params.approved
-
     const content = approved
       ? `
         ${heading('Your request was approved ✅')}
         ${subtext(`Hi <strong style="color:#111;">${params.guestName}</strong>,`)}
-
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
                style="background:#f0fdf4;border-radius:12px;border:1px solid #bbf7d0;margin-bottom:24px;">
-          <tr>
-            <td style="padding:18px 20px;">
-              <p style="margin:0 0 4px;font-size:15px;color:#111;">
-                Great news — your plus-one request for <strong>${params.eventTitle}</strong> has been approved.
-              </p>
-              <p style="margin:8px 0 0;font-size:14px;color:#166534;">
-                Your new allocation:
-                <strong>${params.newAllocation} spot${(params.newAllocation ?? 0) !== 1 ? 's' : ''}</strong>
-              </p>
-            </td>
-          </tr>
+          <tr><td style="padding:18px 20px;">
+            <p style="margin:0 0 4px;font-size:15px;color:#111;">
+              Great news — your plus-one request for <strong>${params.eventTitle}</strong> has been approved.
+            </p>
+            <p style="margin:8px 0 0;font-size:14px;color:#166534;">
+              Your new allocation: <strong>${params.newAllocation} spot${(params.newAllocation ?? 0) !== 1 ? 's' : ''}</strong>
+            </p>
+          </td></tr>
         </table>
-
-        <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
-          Your QR code has been updated — check your original invite email or visit your invite link.
-        </p>
+        <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">Your QR code has been updated — check your original invite email or visit your invite link.</p>
       `
       : `
         ${heading('Your request was not approved')}
         ${subtext(`Hi <strong style="color:#111;">${params.guestName}</strong>,`)}
-
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
                style="background:#fef2f2;border-radius:12px;border:1px solid #fecaca;margin-bottom:24px;">
-          <tr>
-            <td style="padding:18px 20px;">
-              <p style="margin:0;font-size:15px;color:#111;">
-                Unfortunately your plus-one request for <strong>${params.eventTitle}</strong> was not approved.
-                Your original allocation remains unchanged.
-              </p>
-            </td>
-          </tr>
+          <tr><td style="padding:18px 20px;">
+            <p style="margin:0;font-size:15px;color:#111;">
+              Unfortunately your plus-one request for <strong>${params.eventTitle}</strong> was not approved. Your original allocation remains unchanged.
+            </p>
+          </td></tr>
         </table>
-
-        <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
-          If you have questions, please reach out to the event host directly.
-        </p>
+        <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">If you have questions, please reach out to the event host directly.</p>
       `
 
-    if (!this.resend) return
-    try {
-      await this.resend.emails.send({
-        from: this.from,
-        to: params.to,
-        subject: approved
-          ? `Your plus-one request for ${params.eventTitle} was approved`
-          : `Your plus-one request for ${params.eventTitle}`,
-        html: base(content),
-      })
-    } catch (err) {
-      this.logger.error('Failed to send plus-one outcome email', err)
-    }
+    await this.send(
+      params.to,
+      approved
+        ? `Your plus-one request for ${params.eventTitle} was approved`
+        : `Your plus-one request for ${params.eventTitle}`,
+      content,
+    )
   }
 
   // ── 4. Vendor inquiry (to vendor) ────────────────────────────────────────────
 
   async sendVendorInquiry(params: VendorInquiryEmailParams) {
     const deadline = new Date(params.expiresAt).toLocaleString('en-NG', {
-      day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+      day: 'numeric',
+      month: 'long',
+      hour: '2-digit',
+      minute: '2-digit',
     })
 
     const content = `
       ${heading('New availability enquiry')}
       ${subtext(`Hi <strong style="color:#111;">${params.vendorName}</strong>, you have a new enquiry through Owambe.`)}
-
       ${eventCard(params.eventTitle, params.eventDate, params.eventCity)}
 
-      ${params.offeredPrice ? `
+      ${
+        params.offeredPrice
+          ? `
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
              style="background:#f0fdf4;border-radius:12px;border:1px solid #bbf7d0;margin-bottom:16px;">
-        <tr>
-          <td style="padding:16px 20px;">
-            <p style="margin:0;font-size:13px;color:#166534;">
-              💰 The organiser has offered <strong>${params.offeredPrice}</strong> for this booking.
-              You can accept this price or suggest a counter-offer when you respond.
-            </p>
-          </td>
-        </tr>
-      </table>` : ''}
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0;font-size:13px;color:#166534;">
+            💰 The organiser has offered <strong>${params.offeredPrice}</strong> for this booking.
+            You can accept this price or suggest a counter-offer when you respond.
+          </p>
+        </td></tr>
+      </table>`
+          : ''
+      }
 
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
              style="background:#fffbeb;border-radius:12px;border:1px solid #fde68a;margin-bottom:24px;">
-        <tr>
-          <td style="padding:16px 20px;">
-            <p style="margin:0;font-size:13px;color:#92400e;">
-              ⏱ Please respond by <strong>${deadline}</strong> — after this the enquiry will expire automatically.
-            </p>
-          </td>
-        </tr>
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0;font-size:13px;color:#92400e;">
+            ⏱ Please respond by <strong>${deadline}</strong> — after this the enquiry will expire automatically.
+          </p>
+        </td></tr>
       </table>
 
       <p style="margin:0 0 20px;font-size:14px;color:#6b7280;text-align:center;">
         Log in to your vendor portal to confirm your availability and price.
       </p>
     `
-
-    if (!this.resend) return
-    try {
-      await this.resend.emails.send({
-        from: this.from,
-        to: params.to,
-        subject: `New availability enquiry — ${params.eventTitle}`,
-        html: base(content),
-      })
-    } catch (err) {
-      this.logger.error('Failed to send vendor inquiry email', err)
-    }
+    await this.send(params.to, `New availability enquiry — ${params.eventTitle}`, content)
   }
 
   // ── 5. Vendor response notification (to organiser) ───────────────────────────
 
   async sendVendorResponse(params: VendorResponseEmailParams) {
     const available = params.available
+    const hasCounter = !!params.counterPrice
 
     const statusBlock = available
       ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
                style="background:#f0fdf4;border-radius:12px;border:1px solid #bbf7d0;margin-bottom:24px;">
           <tr><td style="padding:16px 20px;">
-            <p style="margin:0;font-size:15px;color:#166534;font-weight:600;">
+            <p style="margin:0 0 4px;font-size:15px;color:#166534;font-weight:600;">
               ✅ ${params.vendorName} is available on your event date
             </p>
-            ${params.vendorNotes ? `<p style="margin:8px 0 0;font-size:13px;color:#166534;">"${params.vendorNotes}"</p>` : ''}
+            ${hasCounter ? `<p style="margin:6px 0 0;font-size:13px;color:#166534;">They've suggested a counter-offer of <strong>${fmt(params.counterPrice!)}</strong>. Review and respond in the app.</p>` : ''}
+            ${params.vendorNotes ? `<p style="margin:6px 0 0;font-size:13px;color:#166534;">"${params.vendorNotes}"</p>` : ''}
           </td></tr>
         </table>`
       : `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
                style="background:#fef2f2;border-radius:12px;border:1px solid #fecaca;margin-bottom:24px;">
           <tr><td style="padding:16px 20px;">
-            <p style="margin:0;font-size:15px;color:#991b1b;font-weight:600;">
+            <p style="margin:0 0 4px;font-size:15px;color:#991b1b;font-weight:600;">
               ❌ ${params.vendorName} is not available on your event date
             </p>
-            ${params.vendorNotes ? `<p style="margin:8px 0 0;font-size:13px;color:#991b1b;">"${params.vendorNotes}"</p>` : ''}
+            ${params.vendorNotes ? `<p style="margin:6px 0 0;font-size:13px;color:#991b1b;">"${params.vendorNotes}"</p>` : ''}
           </td></tr>
         </table>`
 
     const content = `
       ${heading('Vendor availability update')}
       ${subtext(`Hi <strong style="color:#111;">${params.organizerName}</strong>,`)}
-
       ${eventCard(params.eventTitle, params.eventDate, '')}
       ${statusBlock}
-
       <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
-        ${available ? 'You can now commit this vendor from your event dashboard.' : 'Consider choosing your B or C option for this category.'}
+        ${available ? 'Log in to your event dashboard to proceed with this booking.' : 'Consider choosing your B or C option for this category.'}
       </p>
     `
-
-    if (!this.resend) return
-    try {
-      await this.resend.emails.send({
-        from: this.from,
-        to: params.to,
-        subject: available
-          ? `${params.vendorName} is available for ${params.eventTitle}`
-          : `${params.vendorName} is not available — ${params.eventTitle}`,
-        html: base(content),
-      })
-    } catch (err) {
-      this.logger.error('Failed to send vendor response email', err)
-    }
+    await this.send(
+      params.to,
+      available
+        ? `${params.vendorName} is available for ${params.eventTitle}`
+        : `${params.vendorName} is not available — ${params.eventTitle}`,
+      content,
+    )
   }
 
   // ── 6. Commitment confirmed — to organiser ───────────────────────────────────
 
   async sendCommitmentConfirmedToOrganiser(params: CommitmentConfirmedOrganizerParams) {
-    const fmt = (n: number) =>
-      new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(n)
-
     const content = `
       ${heading('Commitment fee paid ✅')}
       ${subtext(`Hi <strong style="color:#111;">${params.organizerName}</strong>, your commitment fee has been received.`)}
-
       ${eventCard(params.eventTitle, params.eventDate, '')}
 
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
              style="background:#f0fdf4;border-radius:12px;border:1px solid #bbf7d0;margin-bottom:24px;">
         <tr><td style="padding:18px 20px;">
-          <p style="margin:0 0 6px;font-size:15px;font-weight:600;color:#166534;">
-            ${params.vendorName} is now committed to your event
-          </p>
+          <p style="margin:0 0 6px;font-size:15px;font-weight:600;color:#166534;">${params.vendorName} is now committed to your event</p>
           <p style="margin:0;font-size:13px;color:#166534;">
             Commitment fee paid: <strong>${fmt(params.amountPaid)}</strong> — held securely until after your event.
           </p>
@@ -505,30 +509,15 @@ export class EmailService {
         The balance will be settled directly with the vendor via your agreed payment method after the event.
       </p>
     `
-
-    if (!this.resend) return
-    try {
-      await this.resend.emails.send({
-        from: this.from,
-        to: params.to,
-        subject: `${params.vendorName} is committed to ${params.eventTitle}`,
-        html: base(content),
-      })
-    } catch (err) {
-      this.logger.error('Failed to send commitment confirmation to organiser', err)
-    }
+    await this.send(params.to, `${params.vendorName} is committed to ${params.eventTitle}`, content)
   }
 
   // ── 7. Commitment confirmed — to vendor ──────────────────────────────────────
 
   async sendCommitmentConfirmedToVendor(params: CommitmentConfirmedVendorParams) {
-    const fmt = (n: number) =>
-      new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(n)
-
     const content = `
       ${heading('New commitment received 🎉')}
       ${subtext(`Hi <strong style="color:#111;">${params.vendorName}</strong>, you have a confirmed booking through Owambe.`)}
-
       ${eventCard(params.eventTitle, params.eventDate, '')}
 
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
@@ -537,35 +526,23 @@ export class EmailService {
           <p style="margin:0 0 4px;font-size:13px;color:#166534;">Booked by</p>
           <p style="margin:0 0 10px;font-size:15px;font-weight:600;color:#111;">${params.organizerName}</p>
           <p style="margin:0;font-size:13px;color:#166534;">
-            Commitment fee held in escrow: <strong>${fmt(params.amountHeld)}</strong>
+            Commitment fee in escrow: <strong>${fmt(params.amountHeld)}</strong>
           </p>
         </td></tr>
       </table>
 
       <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
-        Please ensure the date is blocked in your availability calendar. The balance will be settled on or after the event day.
+        Please ensure the date is blocked in your availability calendar.
       </p>
     `
-
-    if (!this.resend) return
-    try {
-      await this.resend.emails.send({
-        from: this.from,
-        to: params.to,
-        subject: `You have a confirmed booking — ${params.eventTitle}`,
-        html: base(content),
-      })
-    } catch (err) {
-      this.logger.error('Failed to send commitment confirmation to vendor', err)
-    }
+    await this.send(params.to, `You have a confirmed booking — ${params.eventTitle}`, content)
   }
 
   // ── 8. Review reminder ───────────────────────────────────────────────────────
 
   async sendReviewReminder(params: ReviewReminderParams) {
-    const appUrl = process.env.APP_URL ?? 'http://localhost:3000'
+    const appUrl = this.config.get<string>('appUrl') ?? 'http://localhost:3000'
     const reviewUrl = `${appUrl}/review/${params.interestId}`
-
     const urgency = params.isLast
       ? `<p style="margin:0 0 16px;font-size:13px;color:#9ca3af;text-align:center;">This is our last reminder — we won't send any more.</p>`
       : ''
@@ -586,26 +563,168 @@ export class EmailService {
       <p style="margin:0 0 20px;font-size:14px;color:#6b7280;text-align:center;">
         Takes less than a minute. Your review helps other event organisers make the right choice.
       </p>
-
       ${primaryBtn('Leave a review', reviewUrl)}
-
       ${divider()}
       ${urgency}
-      <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
-        Reminder ${params.reminderNumber} of ${params.isLast ? params.reminderNumber : '...'}
+      <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">Reminder ${params.reminderNumber} of ${params.isLast ? params.reminderNumber : '...'}</p>
+    `
+    await this.send(params.to, `How was ${params.vendorName}? Leave a quick review`, content)
+  }
+
+  // ── 9. Vendor cancelled → notify organiser ───────────────────────────────────
+
+  async sendVendorCancelledToOrganiser(params: VendorCancelledParams) {
+    const hasOutstanding = params.outstandingNaira > 0
+
+    const content = `
+      ${heading('A vendor has cancelled your booking')}
+      ${subtext(`Hi <strong style="color:#111;">${params.organizerName}</strong>, unfortunately ${params.vendorName} has cancelled their booking for your event.`)}
+      ${eventCard(params.eventTitle, params.eventDate, '')}
+
+      ${
+        params.heldRefundedNaira > 0
+          ? `
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#f0fdf4;border-radius:12px;border:1px solid #bbf7d0;margin-bottom:16px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0;font-size:14px;color:#166534;">
+            ✅ <strong>${fmt(params.heldRefundedNaira)}</strong> has been returned to you immediately — this was the amount Owambe still held.
+          </p>
+        </td></tr>
+      </table>`
+          : ''
+      }
+
+      ${
+        hasOutstanding
+          ? `
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#fffbeb;border-radius:12px;border:1px solid #fde68a;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 6px;font-size:14px;color:#92400e;font-weight:600;">
+            ⚠️ ${fmt(params.outstandingNaira)} outstanding
+          </p>
+          <p style="margin:0;font-size:13px;color:#92400e;">
+            This amount was already released to the vendor. They have been notified and have until
+            <strong>${params.repaymentDeadline ? new Date(params.repaymentDeadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : 'TBC'}</strong>
+            to refund you.
+          </p>
+          <p style="margin:8px 0 0;font-size:13px;color:#92400e;">
+            The vendor's profile has been suspended until this is resolved. We will keep you updated on repayment progress.
+          </p>
+          <p style="margin:8px 0 0;font-size:12px;color:#b45309;">
+            Note: Owambe does not currently hold a guarantee reserve. We will pursue this refund on your behalf but cannot guarantee the recovery timeline.
+          </p>
+        </td></tr>
+      </table>`
+          : `
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#f0fdf4;border-radius:12px;border:1px solid #bbf7d0;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0;font-size:14px;color:#166534;">
+            ✅ No additional amount outstanding — your full payment has been returned.
+          </p>
+        </td></tr>
+      </table>`
+      }
+
+      <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
+        We recommend finding a replacement vendor as soon as possible. Log in to your event dashboard to shortlist alternatives.
       </p>
     `
+    await this.send(
+      params.to,
+      `${params.vendorName} has cancelled your booking — ${params.eventTitle}`,
+      content,
+    )
+  }
 
-    if (!this.resend) return
-    try {
-      await this.resend.emails.send({
-        from: this.from,
-        to: params.to,
-        subject: `How was ${params.vendorName}? Leave a quick review`,
-        html: base(content),
-      })
-    } catch (err) {
-      this.logger.error('Failed to send review reminder', err)
-    }
+  // ── 10. Organiser cancelled → notify vendor ──────────────────────────────────
+
+  async sendOrganiserCancelledToVendor(params: OrganiserCancelledParams) {
+    const content = `
+      ${heading('A booking has been cancelled')}
+      ${subtext(`Hi <strong style="color:#111;">${params.vendorName}</strong>, the organiser has cancelled your booking.`)}
+      ${eventCard(params.eventTitle, params.eventDate, '')}
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#fef2f2;border-radius:12px;border:1px solid #fecaca;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0;font-size:14px;color:#991b1b;">
+            <strong>${params.organizerName}</strong> has cancelled this booking. Any funds still held by Owambe have been returned to them per your payment structure's cancellation policy.
+          </p>
+        </td></tr>
+      </table>
+
+      <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
+        The date is now free in your calendar. You may wish to update your availability.
+      </p>
+    `
+    await this.send(params.to, `Booking cancelled — ${params.eventTitle}`, content)
+  }
+
+  // ── 11. Repayment demand → vendor (after they cancelled with outstanding amount)
+
+  async sendRepaymentDemandToVendor(params: RepaymentDemandParams) {
+    const content = `
+      ${heading('Refund required — action needed')}
+      ${subtext(`Hi <strong style="color:#111;">${params.vendorName}</strong>, you have cancelled a confirmed booking and are required to refund the organiser.`)}
+      ${eventCard(params.eventTitle, 'Cancelled booking', '')}
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#fef2f2;border-radius:12px;border:1px solid #fecaca;margin-bottom:24px;">
+        <tr><td style="padding:18px 20px;">
+          <p style="margin:0 0 4px;font-size:13px;color:#991b1b;">Amount owed to ${params.organizerName}</p>
+          <p style="margin:0 0 10px;font-size:20px;font-weight:700;color:#111;">${fmt(params.outstandingNaira)}</p>
+          <p style="margin:0;font-size:13px;color:#991b1b;">
+            Deadline: <strong>${new Date(params.repaymentDeadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>
+          </p>
+        </td></tr>
+      </table>
+
+      <p style="margin:0 0 16px;font-size:14px;color:#6b7280;">
+        Per the terms you agreed to when activating your payment structure, you are responsible for refunding any amounts already released to you when you cancel a confirmed booking.
+      </p>
+      <p style="margin:0 0 20px;font-size:14px;color:#6b7280;">
+        Please log in to your vendor portal to initiate the refund. If you need an extra 7 days, you can request a one-time extension there.
+      </p>
+      <p style="margin:0;font-size:13px;color:#9ca3af;">
+        Your profile has been suspended and will remain so until the refund is confirmed.
+      </p>
+    `
+    await this.send(
+      params.to,
+      `Refund required — ${fmt(params.outstandingNaira)} owed to organiser`,
+      content,
+    )
+  }
+
+  // ── 12. Extension granted → notify organiser ─────────────────────────────────
+
+  async sendExtensionGrantedToOrganiser(params: ExtensionGrantedParams) {
+    const content = `
+      ${heading('Repayment deadline extended')}
+      ${subtext(`Hi <strong style="color:#111;">${params.organizerName}</strong>, we have an update on your pending refund.`)}
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#fffbeb;border-radius:12px;border:1px solid #fde68a;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 4px;font-size:14px;color:#92400e;">
+            <strong>${params.vendorName}</strong> has requested a 7-day extension on their refund for <strong>${params.eventTitle}</strong>.
+          </p>
+          <p style="margin:8px 0 0;font-size:13px;color:#92400e;">
+            New deadline: <strong>${new Date(params.newDeadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>
+          </p>
+          <p style="margin:8px 0 0;font-size:12px;color:#b45309;">
+            This is the maximum extension allowed. If the refund is not completed by this date, we will escalate.
+          </p>
+        </td></tr>
+      </table>
+
+      <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
+        You will be notified as soon as the refund is completed.
+      </p>
+    `
+    await this.send(params.to, `Refund extension granted — ${params.vendorName}`, content)
   }
 }

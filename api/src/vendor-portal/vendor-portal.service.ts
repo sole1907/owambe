@@ -1,10 +1,14 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common'
 import { SupabaseService } from '../supabase/supabase.service'
+import { EmailService } from '../email/email.service'
 import { UpdateVendorProfileDto } from './dto/update-vendor-profile.dto'
 
 @Injectable()
 export class VendorPortalService {
-  constructor(private supabase: SupabaseService) {}
+  constructor(
+    private supabase: SupabaseService,
+    private email: EmailService,
+  ) {}
 
   private async getVendorByUserId(userId: string) {
     const client = this.supabase.getAdminClient()
@@ -349,6 +353,273 @@ export class VendorPortalService {
       .eq('vendor_id', vendor.id)
     if (error) throw new InternalServerErrorException(error.message)
     return { id: packageId }
+  }
+
+  // ── Payment structure management ─────────────────────────────────────────────
+
+  async getPaymentStructure(userId: string) {
+    const client = this.supabase.getAdminClient()
+    const vendor = await this.getVendorByUserId(userId)
+    const { data } = await client
+      .from('vendor_payment_structures')
+      .select('*')
+      .eq('vendor_id', vendor.id)
+      .single()
+    return data ?? null
+  }
+
+  async savePaymentStructure(
+    userId: string,
+    dto: {
+      commitmentPct: number
+      materialsPct: number
+      balancePct: number
+      commitmentReleaseDays: number
+      materialsReleaseDays: number
+      balanceReleaseHours: number
+    },
+  ) {
+    const client = this.supabase.getAdminClient()
+    const vendor = await this.getVendorByUserId(userId)
+
+    const total = dto.commitmentPct + dto.materialsPct + dto.balancePct
+    if (total !== 100) throw new BadRequestException('Percentages must sum to 100')
+    if (dto.balancePct < 20) throw new BadRequestException('Balance must be at least 20%')
+    if (dto.commitmentPct < 10) throw new BadRequestException('Commitment fee must be at least 10%')
+    if (dto.commitmentReleaseDays < 7) throw new BadRequestException('Commitment release must be at least 7 days before event')
+    if (dto.materialsReleaseDays < 7) throw new BadRequestException('Materials release must be at least 7 days before event')
+    if (dto.balanceReleaseHours < 24 || dto.balanceReleaseHours > 168) {
+      throw new BadRequestException('Balance release must be between 24 and 168 hours after event')
+    }
+
+    const record = {
+      vendor_id: vendor.id,
+      commitment_pct: dto.commitmentPct,
+      materials_pct: dto.materialsPct,
+      balance_pct: dto.balancePct,
+      commitment_release_days: dto.commitmentReleaseDays,
+      materials_release_days: dto.materialsReleaseDays,
+      balance_release_hours: dto.balanceReleaseHours,
+      is_active: false, // inactive until terms agreed
+      updated_at: new Date().toISOString(),
+    }
+
+    const { data, error } = await client
+      .from('vendor_payment_structures')
+      .upsert(record, { onConflict: 'vendor_id' })
+      .select()
+      .single()
+
+    if (error) throw new InternalServerErrorException(error.message)
+    return data
+  }
+
+  async agreeToPaymentTerms(userId: string) {
+    const client = this.supabase.getAdminClient()
+    const vendor = await this.getVendorByUserId(userId)
+
+    const { data: existing } = await client
+      .from('vendor_payment_structures')
+      .select('id')
+      .eq('vendor_id', vendor.id)
+      .single()
+
+    if (!existing) throw new BadRequestException('Set up your payment structure before agreeing to terms')
+
+    const { data, error } = await client
+      .from('vendor_payment_structures')
+      .update({
+        is_active: true,
+        terms_agreed_at: new Date().toISOString(),
+        terms_version: 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('vendor_id', vendor.id)
+      .select()
+      .single()
+
+    if (error) throw new InternalServerErrorException(error.message)
+    return data
+  }
+
+  // ── Vendor cancellation flow ──────────────────────────────────────────────────
+
+  async cancelBookingAsVendor(userId: string, interestId: string, reason?: string) {
+    const client = this.supabase.getAdminClient()
+    const vendor = await this.getVendorByUserId(userId)
+
+    const { data: interest, error: ie } = await client
+      .from('vendor_interests')
+      .select(`
+        id, status, event_id, offered_price, agreed_price, total_contract_kobo,
+        events (id, title, event_date, user_id),
+        users (email, full_name)
+      `)
+      .eq('id', interestId)
+      .eq('vendor_id', vendor.id)
+      .single()
+
+    if (ie || !interest) throw new NotFoundException('Booking not found')
+    if (!['available', 'committed'].includes(interest.status)) {
+      throw new BadRequestException('Only confirmed bookings can be cancelled')
+    }
+
+    // Calculate what has already been released vs still held
+    const { data: schedule } = await client
+      .from('interest_payment_schedule')
+      .select('bucket, amount_kobo, status')
+      .eq('interest_id', interestId)
+
+    const releasedKobo = (schedule ?? [])
+      .filter((s) => s.status === 'released')
+      .reduce((sum, s) => sum + s.amount_kobo, 0)
+
+    const heldKobo = (schedule ?? [])
+      .filter((s) => s.status === 'scheduled')
+      .reduce((sum, s) => sum + s.amount_kobo, 0)
+
+    const outstandingKobo = releasedKobo // vendor must repay what was already released
+    const repaymentDeadline = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+
+    // Mark all held schedule entries as refunded
+    if (heldKobo > 0) {
+      await client
+        .from('interest_payment_schedule')
+        .update({ status: 'refunded', refunded_at: new Date().toISOString() })
+        .eq('interest_id', interestId)
+        .eq('status', 'scheduled')
+    }
+
+    // Mark interest as cancelled
+    await client
+      .from('vendor_interests')
+      .update({ status: 'cancelled', cancelled_at: new Date().toISOString(), cancelled_by: 'vendor' })
+      .eq('id', interestId)
+
+    // Create cancellation record
+    const { data: cancellation, error: ce } = await client
+      .from('booking_cancellations')
+      .insert({
+        interest_id: interestId,
+        cancelled_by: 'vendor',
+        held_funds_returned_kobo: heldKobo,
+        outstanding_kobo: outstandingKobo,
+        repayment_deadline: outstandingKobo > 0 ? repaymentDeadline : null,
+        status: outstandingKobo > 0 ? 'pending' : 'no_outstanding',
+      })
+      .select()
+      .single()
+
+    if (ce || !cancellation) throw new InternalServerErrorException('Failed to record cancellation')
+
+    // Build transparency timeline
+    const events: { event_type: string; message: string }[] = []
+    const heldNaira = Math.round(heldKobo / 100).toLocaleString()
+    const outstandingNaira = Math.round(outstandingKobo / 100).toLocaleString()
+
+    events.push({ event_type: 'cancelled', message: `Vendor cancelled the booking.${reason ? ` Reason: ${reason}` : ''}` })
+
+    if (heldKobo > 0) {
+      events.push({ event_type: 'held_returned', message: `₦${heldNaira} returned to you immediately (funds held by Owambe).` })
+    }
+
+    if (outstandingKobo > 0) {
+      events.push({ event_type: 'repayment_demanded', message: `₦${outstandingNaira} outstanding — vendor has been notified and has 7 days to refund you. Deadline: ${new Date(repaymentDeadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}.` })
+    } else {
+      events.push({ event_type: 'resolved', message: 'No additional funds outstanding. Your full payment has been returned.' })
+    }
+
+    await client.from('cancellation_events').insert(
+      events.map((e) => ({ ...e, cancellation_id: cancellation.id }))
+    )
+
+    // Notify organiser
+    const organiserEmail = (interest.users as any)?.email
+    const organiserName = (interest.users as any)?.full_name ?? 'there'
+    const eventTitle = (interest.events as any)?.title ?? 'your event'
+    const eventDate = (interest.events as any)?.event_date ?? ''
+    if (organiserEmail) {
+      await this.email.sendVendorCancelledToOrganiser({
+        to: organiserEmail,
+        organizerName: organiserName,
+        vendorName: vendor.name,
+        eventTitle,
+        eventDate,
+        heldRefundedNaira: Math.round(heldKobo / 100),
+        outstandingNaira: Math.round(outstandingKobo / 100),
+        repaymentDeadline: outstandingKobo > 0 ? repaymentDeadline : null,
+      })
+    }
+
+    // Notify vendor of repayment obligation
+    if (outstandingKobo > 0 && vendor.email) {
+      await this.email.sendRepaymentDemandToVendor({
+        to: vendor.email,
+        vendorName: vendor.name,
+        organizerName: organiserName,
+        eventTitle,
+        outstandingNaira: Math.round(outstandingKobo / 100),
+        repaymentDeadline,
+      })
+    }
+
+    return { cancellation, heldKobo, outstandingKobo }
+  }
+
+  async requestCancellationExtension(userId: string, interestId: string) {
+    const client = this.supabase.getAdminClient()
+    const vendor = await this.getVendorByUserId(userId)
+
+    const { data: cancellation, error } = await client
+      .from('booking_cancellations')
+      .select('id, status, extension_granted, repayment_deadline, interest_id, vendor_interests!inner(vendor_id)')
+      .eq('interest_id', interestId)
+      .eq('cancelled_by', 'vendor')
+      .single()
+
+    if (error || !cancellation) throw new NotFoundException('Cancellation not found')
+    if ((cancellation.vendor_interests as any)?.vendor_id !== vendor.id) throw new BadRequestException('Not authorised')
+    if (cancellation.extension_granted) throw new BadRequestException('Extension already granted')
+    if (cancellation.status !== 'pending') throw new BadRequestException('Extension can only be requested while repayment is pending')
+
+    const newDeadline = new Date(new Date(cancellation.repayment_deadline).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+
+    await client
+      .from('booking_cancellations')
+      .update({
+        extension_granted: true,
+        extension_requested_at: new Date().toISOString(),
+        repayment_deadline: newDeadline,
+        status: 'extension_granted',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', cancellation.id)
+
+    await client.from('cancellation_events').insert({
+      cancellation_id: cancellation.id,
+      event_type: 'extension_granted',
+      message: `Vendor requested a 7-day extension. New repayment deadline: ${new Date(newDeadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}.`,
+    })
+
+    // Notify organiser of the extension
+    const { data: interest } = await client
+      .from('vendor_interests')
+      .select(`vendors(name), events(title), users(email, full_name)`)
+      .eq('id', interestId)
+      .single()
+
+    const organiserEmail = (interest as any)?.users?.email
+    if (organiserEmail) {
+      await this.email.sendExtensionGrantedToOrganiser({
+        to: organiserEmail,
+        organizerName: (interest as any)?.users?.full_name ?? 'there',
+        vendorName: (interest as any)?.vendors?.name ?? 'The vendor',
+        eventTitle: (interest as any)?.events?.title ?? 'your event',
+        newDeadline,
+      })
+    }
+
+    return { newDeadline }
   }
 
   private async getPlatformSettings(client: ReturnType<SupabaseService['getAdminClient']>) {

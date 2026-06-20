@@ -115,26 +115,36 @@ function RespondModal({
         </p>
 
         {inquiry.offered_price && (
-          <div className={`mb-2 rounded-xl px-3 py-2.5 border ${inquiry.is_final_offer ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
-            <p className={`text-xs ${inquiry.is_final_offer ? 'text-red-800' : 'text-green-800'}`}>
-              Organiser&apos;s offer: <strong>{formatNaira(inquiry.offered_price)}</strong>
-              {inquiry.events?.guest_count_estimate ? ` · ~${inquiry.events.guest_count_estimate.toLocaleString()} guests` : ''}
-              {inquiry.is_final_offer && (
-                <span className="ml-2 font-semibold">— Final offer</span>
-              )}
-            </p>
-          </div>
-        )}
-
-        {inquiry.discount_requested && inquiry.discount_requested > 0 && (
-          <div className="mb-4 rounded-xl px-3 py-2.5 border bg-amber-50 border-amber-200">
-            <p className="text-xs text-amber-900">
-              <span className="font-semibold">Discount requested:</span>{' '}
-              Organiser is asking for a{' '}
-              <strong>{formatNaira(inquiry.discount_requested)}</strong> reduction off your price.
-              You can factor this into your counter-offer or decline the discount.
-            </p>
-          </div>
+          (() => {
+            const hasDiscount = inquiry.discount_requested && inquiry.discount_requested > 0
+            const netAsk = hasDiscount ? inquiry.offered_price - inquiry.discount_requested! : null
+            return (
+              <div className={`mb-4 rounded-xl px-3 py-3 border ${inquiry.is_final_offer ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+                {hasDiscount ? (
+                  <>
+                    <p className={`text-xs ${inquiry.is_final_offer ? 'text-red-800' : 'text-green-800'}`}>
+                      Computed total:{' '}
+                      <span className="line-through text-gray-400">{formatNaira(inquiry.offered_price)}</span>
+                      {inquiry.events?.guest_count_estimate ? ` · ~${inquiry.events.guest_count_estimate.toLocaleString()} guests` : ''}
+                    </p>
+                    <p className={`text-xs font-semibold mt-0.5 ${inquiry.is_final_offer ? 'text-red-900' : 'text-green-900'}`}>
+                      Organiser wants to pay: <strong>{formatNaira(netAsk!)}</strong>
+                      <span className="ml-2 font-normal text-amber-700">
+                        (asking {formatNaira(inquiry.discount_requested!)} off)
+                      </span>
+                      {inquiry.is_final_offer && <span className="ml-2">— Final offer</span>}
+                    </p>
+                  </>
+                ) : (
+                  <p className={`text-xs ${inquiry.is_final_offer ? 'text-red-800' : 'text-green-800'}`}>
+                    Organiser&apos;s offer: <strong>{formatNaira(inquiry.offered_price)}</strong>
+                    {inquiry.events?.guest_count_estimate ? ` · ~${inquiry.events.guest_count_estimate.toLocaleString()} guests` : ''}
+                    {inquiry.is_final_offer && <span className="ml-2 font-semibold">— Final offer</span>}
+                  </p>
+                )}
+              </div>
+            )
+          })()
         )}
 
         <p className="text-xs font-medium text-gray-600 mb-2">
@@ -411,9 +421,10 @@ function InquiryCard({
             )}
           </div>
         )}
-        {inquiry.discount_requested && inquiry.discount_requested > 0 && (
+        {inquiry.discount_requested && inquiry.discount_requested > 0 && inquiry.offered_price && (
           <p className="mt-1.5 text-amber-700 font-medium">
-            Discount requested: {formatNaira(inquiry.discount_requested)} off
+            Wants to pay: {formatNaira(inquiry.offered_price - inquiry.discount_requested)}{' '}
+            <span className="font-normal text-amber-600">({formatNaira(inquiry.discount_requested)} discount off {formatNaira(inquiry.offered_price)})</span>
           </p>
         )}
       </div>

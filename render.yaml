@@ -26,3 +26,5 @@ services:
         sync: false
       - key: POSTHOG_KEY
         sync: false
+      - key: TEST_EMAIL_INTERCEPT
+        sync: false
