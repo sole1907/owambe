@@ -65,7 +65,6 @@ export default function VendorPaymentsPage() {
   }
 
   // Refund preview amounts
-  const commitmentAmt = Math.round((EXAMPLE_CONTRACT * commitmentPct) / 100)
   const materialsAmt = Math.round((EXAMPLE_CONTRACT * materialsPct) / 100)
   const balanceAmt = Math.round((EXAMPLE_CONTRACT * balancePct) / 100)
   const materialsAndBalanceAmt = materialsAmt + balanceAmt
