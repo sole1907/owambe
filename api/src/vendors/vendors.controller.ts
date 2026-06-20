@@ -20,12 +20,34 @@ export class VendorsController {
     @Query('category') categorySlug?: string,
     @Query('city') city?: string,
     @Query('budgetMax') budgetMax?: string,
+    @Query('minCapacity') minCapacity?: string,
   ) {
     return this.vendors.getVendors({
       categorySlug,
       city,
       budgetMax: budgetMax ? parseInt(budgetMax) : undefined,
+      minCapacity: minCapacity ? parseInt(minCapacity) : undefined,
     })
+  }
+
+  @Get('menu-catalog')
+  getMenuCatalog(@Query('city') city: string) {
+    return this.vendors.getMenuCatalog(city || '')
+  }
+
+  @Get(':slug/menu')
+  getVendorMenu(@Param('slug') slug: string) {
+    return this.vendors.getVendorMenu(slug)
+  }
+
+  @Get('style-catalog')
+  getStyleCatalog(@Query('city') city: string) {
+    return this.vendors.getStyleCatalog(city || '')
+  }
+
+  @Get(':slug/packages')
+  getVendorPackages(@Param('slug') slug: string) {
+    return this.vendors.getVendorPackages(slug)
   }
 
   @Get(':slug')
@@ -59,5 +81,13 @@ export class AdminVendorsController {
   @Patch(':id')
   updateVendor(@Param('id') id: string, @Body() dto: UpdateVendorDto) {
     return this.vendors.adminUpdateVendor(id, dto)
+  }
+
+  @Post(':id/create-account')
+  createVendorUser(
+    @Param('id') id: string,
+    @Body() body: { email: string; password: string },
+  ) {
+    return this.vendors.adminCreateVendorUser(id, body.email, body.password)
   }
 }

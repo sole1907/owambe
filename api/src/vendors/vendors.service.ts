@@ -1,4 +1,5 @@
 import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common'
+import { BUDGET_CATEGORY_TO_VENDOR_SLUG } from '../events/events.service'
 import { SupabaseService } from '../supabase/supabase.service'
 import { CreateVendorDto, UpdateVendorDto } from './dto/vendor.dto'
 import { PostHogService } from '../analytics/posthog.service'
@@ -7,6 +8,7 @@ type VendorFilters = {
   categorySlug?: string
   city?: string
   budgetMax?: number
+  minCapacity?: number // venues only: filter out venues smaller than guest count
 }
 
 @Injectable()
@@ -24,8 +26,8 @@ export class VendorsService {
       .select(
         `
         id, name, slug, description, city, location,
-        price_min, price_max, rating, review_count,
-        photos, whatsapp, phone, instagram, is_featured,
+        price_min, price_max, rating, review_count, capacity,
+        photos, videos, whatsapp, phone, instagram, is_featured,
         vendor_categories (id, name, slug)
       `,
       )
@@ -44,12 +46,16 @@ export class VendorsService {
     if (filters.categorySlug) {
       const { data: category } = await client
         .from('vendor_categories')
-        .select('id')
+        .select('id, slug')
         .eq('slug', filters.categorySlug)
         .single()
 
       if (category) {
         query = query.eq('category_id', category.id)
+        // filter venues by capacity if requested
+        if (category.slug === 'venues' && filters.minCapacity) {
+          query = query.gte('capacity', filters.minCapacity)
+        }
       }
     }
 
@@ -57,6 +63,122 @@ export class VendorsService {
 
     if (error) throw new InternalServerErrorException(error.message)
     return data
+  }
+
+  async getMenuCatalog(city: string) {
+    const client = this.supabase.getClient()
+
+    const { data: catCategory } = await client
+      .from('vendor_categories')
+      .select('id')
+      .eq('slug', 'caterers')
+      .single()
+
+    if (!catCategory) return []
+
+    const { data: vendorIds } = await client
+      .from('vendors')
+      .select('id')
+      .eq('category_id', catCategory.id)
+      .eq('is_active', true)
+      .ilike('city', `%${city}%`)
+
+    if (!vendorIds?.length) return []
+
+    const ids = vendorIds.map((v: any) => v.id)
+    const { data, error } = await client
+      .from('caterer_menu_items')
+      .select('name, category')
+      .in('vendor_id', ids)
+      .eq('is_active', true)
+      .order('category')
+      .order('name')
+
+    if (error || !data) return []
+
+    // Deduplicate by name within each category
+    const grouped = new Map<string, Set<string>>()
+    for (const item of data) {
+      if (!grouped.has(item.category)) grouped.set(item.category, new Set())
+      grouped.get(item.category)!.add(item.name)
+    }
+
+    return Array.from(grouped.entries()).map(([category, names]) => ({
+      category,
+      items: Array.from(names).sort(),
+    }))
+  }
+
+  async getVendorMenu(slug: string) {
+    const client = this.supabase.getClient()
+    const { data: vendor } = await client.from('vendors').select('id').eq('slug', slug).single()
+    if (!vendor) return []
+
+    const { data, error } = await client
+      .from('caterer_menu_items')
+      .select('id, name, category, description, sort_order, caterer_menu_pricing_tiers (id, min_servings, max_servings, price_per_serving)')
+      .eq('vendor_id', vendor.id)
+      .eq('is_active', true)
+      .order('category')
+      .order('sort_order')
+
+    if (error) return []
+    return data ?? []
+  }
+
+  async getStyleCatalog(city: string) {
+    const client = this.supabase.getClient()
+
+    const { data: decCategory } = await client
+      .from('vendor_categories')
+      .select('id')
+      .eq('slug', 'decorators')
+      .single()
+
+    if (!decCategory) return []
+
+    const { data: vendorIds } = await client
+      .from('vendors')
+      .select('id')
+      .eq('category_id', decCategory.id)
+      .eq('is_active', true)
+      .ilike('city', `%${city}%`)
+
+    if (!vendorIds?.length) return []
+
+    const ids = vendorIds.map((v: any) => v.id)
+    const { data, error } = await client
+      .from('decorator_styles')
+      .select('style')
+      .in('vendor_id', ids)
+      .eq('is_active', true)
+      .order('style')
+
+    if (error || !data) return []
+
+    // Deduplicate styles across all decorators in the city
+    const seen = new Set<string>()
+    for (const row of data) seen.add(row.style)
+
+    return Array.from(seen)
+      .sort()
+      .map((style) => ({ style }))
+  }
+
+  async getVendorPackages(slug: string) {
+    const client = this.supabase.getClient()
+    const { data: vendor } = await client.from('vendors').select('id').eq('slug', slug).single()
+    if (!vendor) return []
+
+    const { data, error } = await client
+      .from('decorator_packages')
+      .select('id, name, description, includes, sort_order, decorator_package_guest_tiers (id, min_guests, max_guests, price)')
+      .eq('vendor_id', vendor.id)
+      .eq('is_active', true)
+      .order('sort_order')
+
+    if (error) return []
+    return data ?? []
   }
 
   async getVendor(slug: string) {
@@ -90,46 +212,101 @@ export class VendorsService {
   async getRecommendedVendors(eventId: string, userId: string) {
     const client = this.supabase.getClient()
 
-    // Fetch event details
-    const { data: event, error: eventError } = await client
-      .from('events')
-      .select('city, budget_estimate, event_type, has_existing_vendors')
-      .eq('id', eventId)
-      .eq('user_id', userId)
-      .single()
+    const [{ data: event, error: eventError }, { data: plan }] = await Promise.all([
+      client.from('events').select('city, guest_count_estimate, budget_estimate').eq('id', eventId).eq('user_id', userId).single(),
+      client.from('event_plans').select('budget_breakdown').eq('event_id', eventId).single(),
+    ])
 
     if (eventError || !event) throw new NotFoundException('Event not found')
+
+    // Build per-vendor-category recommended budget map from the event's breakdown
+    const breakdown: { category: string; percentage: number; amount: number | null }[] =
+      (plan?.budget_breakdown as any[]) ?? []
+    const categoryBudgetMap: Record<string, number> = {}
+    for (const item of breakdown) {
+      const slug = BUDGET_CATEGORY_TO_VENDOR_SLUG[item.category]
+      if (slug && item.amount) categoryBudgetMap[slug] = item.amount
+    }
+
+    const { data: venueCategory } = await client
+      .from('vendor_categories')
+      .select('id')
+      .eq('slug', 'venues')
+      .single()
 
     let query = client
       .from('vendors')
       .select(
-        `
-        id, name, slug, description, city, location,
-        price_min, price_max, rating, review_count,
-        photos, whatsapp, phone, instagram, is_featured,
-        vendor_categories (id, name, slug)
-      `,
+        `id, name, slug, description, city, location,
+        price_min, price_max, service_fee, rating, review_count, capacity,
+        photos, videos, whatsapp, phone, instagram, is_featured,
+        vendor_categories (id, name, slug),
+        caterer_menu_items (name),
+        decorator_styles (style)`,
       )
       .eq('is_active', true)
       .order('is_featured', { ascending: false })
       .order('rating', { ascending: false })
-      .limit(12)
+      .limit(50)
 
-    // Filter by event city
     if (event.city) {
       query = query.ilike('city', `%${event.city}%`)
     }
 
-    // Filter by budget — vendor min price should not exceed ~35% of total budget
-    if (event.budget_estimate) {
-      const maxVendorPrice = Math.round(event.budget_estimate * 0.35)
-      query = query.lte('price_min', maxVendorPrice)
+    const { data, error } = await query
+    if (error) throw new InternalServerErrorException(error.message)
+
+    // Exclude venues too small for guest count
+    const eligible = (data ?? []).filter((v: any) => {
+      if (v.vendor_categories?.id === venueCategory?.id && v.capacity && event.guest_count_estimate) {
+        return v.capacity >= event.guest_count_estimate
+      }
+      return true
+    })
+
+    // Split by budget: use per-category allocation if available, else total budget
+    const withinBudget: any[] = []
+    const aboveBudget: any[] = []
+
+    for (const v of eligible) {
+      const categorySlug = (v.vendor_categories as any)?.slug
+      const categoryBudget = categorySlug ? (categoryBudgetMap[categorySlug] ?? null) : null
+      const fallbackBudget = event.budget_estimate ?? null
+      const effectiveBudget = categoryBudget ?? fallbackBudget
+      const vendorPrice = v.price_min ?? null
+      const fits =
+        categorySlug === 'caterers' || // caterer price depends on menu selection, never filter out
+        !effectiveBudget ||
+        !vendorPrice ||
+        vendorPrice <= effectiveBudget
+
+      // Flatten caterer menu item names for menu-first discovery
+      const menuItemNames: string[] = Array.isArray((v as any).caterer_menu_items)
+        ? (v as any).caterer_menu_items.map((m: any) => m.name)
+        : []
+
+      // Flatten decorator style names for style-first discovery
+      const styleNames: string[] = Array.isArray((v as any).decorator_styles)
+        ? (v as any).decorator_styles.map((s: any) => s.style)
+        : []
+
+      const enriched = { ...v, is_within_budget: fits, menu_item_names: menuItemNames, style_names: styleNames }
+      if (fits) {
+        withinBudget.push(enriched)
+      } else {
+        aboveBudget.push(enriched)
+      }
     }
 
-    const { data, error } = await query
+    // Within budget: already sorted by featured + rating (from DB)
+    // Above budget: sorted cheapest first so user sees closest-to-budget options first
+    aboveBudget.sort((a, b) => {
+      const priceA = a.service_fee ?? a.price_min ?? Infinity
+      const priceB = b.service_fee ?? b.price_min ?? Infinity
+      return priceA - priceB
+    })
 
-    if (error) throw new InternalServerErrorException(error.message)
-    return data
+    return [...withinBudget, ...aboveBudget]
   }
 
   private slugify(name: string): string {
@@ -194,6 +371,8 @@ export class VendorsService {
         instagram: dto.instagram ?? null,
         website: dto.website ?? null,
         photos: dto.photos ?? [],
+        videos: dto.videos ?? [],
+        capacity: dto.capacity ?? null,
         is_featured: dto.isFeatured ?? false,
         is_active: true,
       })
@@ -221,6 +400,8 @@ export class VendorsService {
     if (dto.instagram !== undefined) updates.instagram = dto.instagram
     if (dto.website !== undefined) updates.website = dto.website
     if (dto.photos !== undefined) updates.photos = dto.photos
+    if (dto.videos !== undefined) updates.videos = dto.videos
+    if (dto.capacity !== undefined) updates.capacity = dto.capacity
     if (dto.isFeatured !== undefined) updates.is_featured = dto.isFeatured
     if (dto.isActive !== undefined) updates.is_active = dto.isActive
 
@@ -233,6 +414,37 @@ export class VendorsService {
 
     if (error) throw new InternalServerErrorException(error.message)
     return data
+  }
+
+  async adminCreateVendorUser(vendorId: string, email: string, password: string) {
+    const authClient = this.supabase.getAuthClient()
+    const adminClient = this.supabase.getAdminClient()
+
+    // Create the auth user
+    const { data: authData, error: authError } = await authClient.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    })
+    if (authError) throw new InternalServerErrorException(authError.message)
+
+    // Create user record with vendor role
+    const { error: userError } = await adminClient.from('users').insert({
+      id: authData.user.id,
+      email,
+      full_name: '',
+      role: 'vendor',
+    })
+    if (userError) throw new InternalServerErrorException(userError.message)
+
+    // Link vendor to this user
+    const { error: vendorError } = await adminClient
+      .from('vendors')
+      .update({ user_id: authData.user.id })
+      .eq('id', vendorId)
+    if (vendorError) throw new InternalServerErrorException(vendorError.message)
+
+    return { message: 'Vendor account created', userId: authData.user.id }
   }
 
   async getCategories() {

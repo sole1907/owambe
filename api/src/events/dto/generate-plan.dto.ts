@@ -10,4 +10,5 @@ export class GeneratePlanDto {
   styleTheme?: string
   hasExistingVendors?: boolean
   existingVendorCategories?: string[]
+  wantsCoordinator?: boolean
 }

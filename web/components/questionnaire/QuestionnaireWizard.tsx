@@ -12,6 +12,7 @@ import StepGuestCount from './StepGuestCount'
 import StepBudget from './StepBudget'
 import StepStyleTheme from './StepStyleTheme'
 import StepExistingVendors from './StepExistingVendors'
+import StepCoordinator from './StepCoordinator'
 
 const STEPS = [
   { id: 'event-type', label: 'Event Type' },
@@ -21,6 +22,7 @@ const STEPS = [
   { id: 'budget', label: 'Budget' },
   { id: 'style', label: 'Style' },
   { id: 'vendors', label: 'Vendors' },
+  { id: 'coordinator', label: 'Coordinator' },
 ]
 
 function canProceed(step: number, answers: QuestionnaireAnswers): boolean {
@@ -32,6 +34,7 @@ function canProceed(step: number, answers: QuestionnaireAnswers): boolean {
     case 4: return answers.budgetEstimate !== null
     case 5: return true // style is optional
     case 6: return answers.hasExistingVendors !== null
+    case 7: return answers.wantsCoordinator !== null
     default: return false
   }
 }
@@ -96,6 +99,7 @@ export default function QuestionnaireWizard() {
         {step === 4 && <StepBudget answers={answers} onChange={onChange} />}
         {step === 5 && <StepStyleTheme answers={answers} onChange={onChange} />}
         {step === 6 && <StepExistingVendors answers={answers} onChange={onChange} />}
+        {step === 7 && <StepCoordinator answers={answers} onChange={onChange} />}
       </div>
 
       {error && (

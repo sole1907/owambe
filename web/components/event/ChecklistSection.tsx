@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/context/auth'
 
@@ -10,6 +10,22 @@ type ChecklistItem = {
   due_date: string | null
   is_completed: boolean
   sort_order: number
+}
+
+type VendorInterest = {
+  id: string
+  preference_rank: number
+  status: 'pending' | 'available' | 'quoted' | 'unavailable' | 'expired' | 'committed'
+  expires_at: string | null
+  offered_price: number | null
+  agreed_price: number | null
+  counter_price: number | null
+  is_final_offer: boolean
+  vendors: {
+    name: string
+    commitment_fee_percentage: number
+    vendor_categories: { name: string; slug: string }
+  }
 }
 
 const VENDOR_CTAS: { pattern: RegExp; slug: string; label: string }[] = [
@@ -28,13 +44,131 @@ function getCTA(title: string) {
   return VENDOR_CTAS.find((c) => c.pattern.test(title)) ?? null
 }
 
+type BudgetItem = {
+  category: string
+  percentage: number
+  amount: number | null
+}
+
+const BUDGET_CATEGORY_TO_SLUG: Record<string, string> = {
+  'Venue': 'venues',
+  'Catering': 'caterers',
+  'Decoration': 'decorators',
+  'Photography': 'photographers',
+  'Videography': 'videographers',
+  'Photography / Videography': 'photographers',
+  'DJ / Live Band': 'djs',
+  'DJ / Entertainment': 'djs',
+  'Entertainment': 'djs',
+  'MC': 'mcs',
+  'Makeup Artist': 'makeup-artists',
+  'Event Coordinator': 'event-coordinators',
+}
+
+function fmt(v: number) {
+  if (v >= 1_000_000) {
+    const str = (v / 1_000_000).toFixed(2).replace(/\.?0+$/, '')
+    return `₦${str}M`
+  }
+  if (v >= 1_000) {
+    const str = (v / 1_000).toFixed(1).replace(/\.?0+$/, '')
+    return `₦${str}k`
+  }
+  return `₦${v.toLocaleString()}`
+}
+
+const STATUS_PRIORITY: Record<VendorInterest['status'], number> = {
+  committed: 0, available: 1, quoted: 2, pending: 3, unavailable: 4, expired: 5,
+}
+
+function hoursUntil(iso: string) {
+  return Math.max(0, Math.round((new Date(iso).getTime() - Date.now()) / (1000 * 60 * 60)))
+}
+
+function InlineVendorStatus({
+  interest,
+  onGoToVendors,
+}: {
+  interest: VendorInterest
+  onGoToVendors: () => void
+}) {
+  const vendor = interest.vendors
+  const priceBasis = interest.agreed_price ?? interest.offered_price
+  const commitmentFee =
+    priceBasis && vendor.commitment_fee_percentage
+      ? Math.round((priceBasis * vendor.commitment_fee_percentage) / 100)
+      : null
+
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span className="text-xs text-gray-500">{vendor.name}</span>
+      <span className="text-gray-300">·</span>
+
+      {interest.status === 'committed' && (
+        <span className="text-xs font-medium text-green-700">Booked ✓</span>
+      )}
+
+      {interest.status === 'available' && (
+        <>
+          <span className="text-xs font-medium text-green-700">Offer accepted ✓</span>
+          <span className="text-gray-300">·</span>
+          <button onClick={onGoToVendors} className="text-xs text-black font-semibold hover:underline">
+            {commitmentFee ? `Pay commitment fee — ${fmt(commitmentFee)} →` : 'Pay commitment fee →'}
+          </button>
+        </>
+      )}
+
+      {interest.status === 'quoted' && (
+        <>
+          <span className="text-xs font-medium text-purple-700">Counter-offer received</span>
+          <span className="text-gray-300">·</span>
+          <button onClick={onGoToVendors} className="text-xs text-purple-700 font-semibold hover:underline">
+            {interest.counter_price ? `${fmt(interest.counter_price)} — review →` : 'Review →'}
+          </button>
+        </>
+      )}
+
+      {interest.status === 'pending' && (
+        <>
+          <span className="text-xs text-amber-700">Awaiting response</span>
+          {interest.expires_at && (
+            <>
+              <span className="text-gray-300">·</span>
+              <span className="text-xs text-gray-400">
+                {(() => {
+                  const h = hoursUntil(interest.expires_at)
+                  return h === 0 ? 'Expiring soon' : `${h}h left`
+                })()}
+              </span>
+            </>
+          )}
+        </>
+      )}
+
+      {(interest.status === 'unavailable' || interest.status === 'expired') && (
+        <>
+          <span className="text-xs text-red-500">
+            {interest.status === 'unavailable' ? 'Not available' : 'Expired'}
+          </span>
+          <span className="text-gray-300">·</span>
+          <button onClick={onGoToVendors} className="text-xs text-black font-semibold hover:underline">
+            Find another →
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
 type Props = {
   eventId: string
   initialItems: ChecklistItem[]
+  budgetBreakdown?: BudgetItem[]
+  totalBudget?: number | null
   onFindVendors?: (categorySlug: string) => void
 }
 
-export default function ChecklistSection({ eventId, initialItems, onFindVendors }: Props) {
+export default function ChecklistSection({ eventId, initialItems, budgetBreakdown, totalBudget, onFindVendors }: Props) {
   const { token } = useAuth()
   const [items, setItems] = useState<ChecklistItem[]>(
     [...initialItems].sort((a, b) => a.sort_order - b.sort_order),
@@ -43,6 +177,15 @@ export default function ChecklistSection({ eventId, initialItems, onFindVendors 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const [adding, setAdding] = useState(false)
+  const [vendorInterests, setVendorInterests] = useState<VendorInterest[]>([])
+
+  useEffect(() => {
+    if (!token) return
+    api
+      .get<VendorInterest[]>(`/events/${eventId}/vendor-interests`, token)
+      .then(setVendorInterests)
+      .catch(() => null)
+  }, [eventId, token])
 
   const completed = items.filter((i) => i.is_completed).length
 
@@ -77,6 +220,23 @@ export default function ChecklistSection({ eventId, initialItems, onFindVendors 
     await api.delete(`/events/checklist/${id}`, token ?? undefined)
   }
 
+  // Budget totals
+  const allocatedBudget = budgetBreakdown
+    ? budgetBreakdown.reduce((sum, b) => sum + (b.amount ?? 0), 0)
+    : 0
+  const unallocated = totalBudget ? Math.max(0, totalBudget - allocatedBudget) : null
+
+  // Best interest per category slug, for inline status on matching checklist items
+  const bestByCategorySlug = new Map<string, VendorInterest>()
+  for (const i of vendorInterests) {
+    const slug = i.vendors?.vendor_categories?.slug
+    if (!slug) continue
+    const existing = bestByCategorySlug.get(slug)
+    if (!existing || STATUS_PRIORITY[i.status] < STATUS_PRIORITY[existing.status]) {
+      bestByCategorySlug.set(slug, i)
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -93,6 +253,44 @@ export default function ChecklistSection({ eventId, initialItems, onFindVendors 
           + Add item
         </button>
       </div>
+
+      {/* Budget guide */}
+      {budgetBreakdown && budgetBreakdown.some((b) => b.amount) && (
+        <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-amber-900">Budget guide</p>
+            {onFindVendors && (
+              <button
+                onClick={() => onFindVendors('')}
+                className="text-xs text-amber-700 hover:underline font-medium"
+              >
+                View vendors →
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-2">
+            {budgetBreakdown
+              .filter((b) => b.amount && BUDGET_CATEGORY_TO_SLUG[b.category])
+              .map((b) => (
+                <div key={b.category} className="flex items-center justify-between gap-1">
+                  <span className="text-xs text-amber-800 truncate">{b.category}</span>
+                  <span className="text-xs font-medium text-amber-900 shrink-0">{fmt(b.amount!)}</span>
+                </div>
+              ))}
+          </div>
+          {totalBudget && (
+            <div className="pt-2 border-t border-amber-200 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-semibold text-amber-900">Total budget</span>
+                <span className="text-xs font-bold text-amber-900">{fmt(totalBudget)}</span>
+              </div>
+              {unallocated !== null && unallocated > 0 && (
+                <span className="text-xs text-amber-700">{fmt(unallocated)} unallocated</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Progress bar */}
       <div className="w-full bg-gray-100 rounded-full h-1.5 mb-5">
@@ -144,16 +342,30 @@ export default function ChecklistSection({ eventId, initialItems, onFindVendors 
                   Due {new Date(item.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </p>
               )}
-              {!item.is_completed && !editingId && onFindVendors && (() => {
+              {!editingId && (() => {
                 const cta = getCTA(item.title)
-                return cta ? (
-                  <button
-                    onClick={() => onFindVendors(cta.slug)}
-                    className="mt-1.5 text-xs text-black font-medium hover:underline"
-                  >
-                    {cta.label} →
-                  </button>
-                ) : null
+                if (!cta) return null
+                const best = bestByCategorySlug.get(cta.slug)
+                if (best) {
+                  return (
+                    <InlineVendorStatus
+                      interest={best}
+                      onGoToVendors={() => onFindVendors?.('')}
+                    />
+                  )
+                }
+                // No vendor shortlisted yet — show discovery CTA
+                if (!item.is_completed && onFindVendors) {
+                  return (
+                    <button
+                      onClick={() => onFindVendors(cta.slug)}
+                      className="mt-1.5 text-xs text-black font-medium hover:underline"
+                    >
+                      {cta.label} →
+                    </button>
+                  )
+                }
+                return null
               })()}
             </div>
 

@@ -22,15 +22,16 @@ describe('PlanGeneratorService', () => {
     })
 
     it('calculates due dates relative to the event date', () => {
+      const eventDate = '2099-01-01'
       const result = service.generate({
         eventType: 'birthday',
-        eventDate: '2025-06-01',
+        eventDate,
         eventTitle: 'Birthday Bash',
       } as any)
 
       result.checklist.forEach((item) => {
         expect(item.dueDate).not.toBeNull()
-        expect(new Date(item.dueDate!).getTime()).toBeLessThan(new Date('2025-06-01').getTime())
+        expect(new Date(item.dueDate!).getTime()).toBeLessThan(new Date(eventDate).getTime())
       })
     })
 

@@ -15,6 +15,18 @@ type EventSummary = {
   status: string
 }
 
+type ReviewableInterest = {
+  id: string
+  vendors: { name: string }
+  events: { title: string }
+}
+
+type ActionSummary = {
+  pending_vendor_response: number
+  counter_received: number
+  counter_events: { id: string; title: string }[]
+}
+
 const EVENT_TYPE_LABELS: Record<string, string> = {
   wedding: 'Wedding',
   birthday: 'Birthday',
@@ -27,14 +39,21 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 export default function DashboardPage() {
   const { user, token } = useAuth()
   const [events, setEvents] = useState<EventSummary[]>([])
+  const [reviewable, setReviewable] = useState<ReviewableInterest[]>([])
+  const [actionSummary, setActionSummary] = useState<ActionSummary | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!token) return
-    api
-      .get<EventSummary[]>('/events', token)
-      .then(setEvents)
-      .finally(() => setLoading(false))
+    Promise.all([
+      api.get<EventSummary[]>('/events', token),
+      api.get<ReviewableInterest[]>('/reviews/reviewable', token).catch(() => []),
+      api.get<ActionSummary>('/vendor-interests/action-summary', token).catch(() => null),
+    ]).then(([e, r, a]) => {
+      setEvents(e)
+      setReviewable(r)
+      setActionSummary(a)
+    }).finally(() => setLoading(false))
   }, [token])
 
   return (
@@ -53,6 +72,46 @@ export default function DashboardPage() {
           + New event
         </Link>
       </div>
+
+      {/* Counter-offers awaiting response */}
+      {actionSummary && actionSummary.counter_received > 0 && (
+        <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-xl">
+          <p className="text-sm font-medium text-purple-900 mb-2">
+            {actionSummary.counter_received} vendor {actionSummary.counter_received === 1 ? 'counter-offer' : 'counter-offers'} awaiting your response
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {actionSummary.counter_events.map((event) => (
+              <Link
+                key={event.id}
+                href={`/events/${event.id}?tab=vendors`}
+                className="text-xs bg-purple-700 text-white px-3 py-1.5 rounded-lg hover:bg-purple-800 transition font-medium"
+              >
+                {event.title} →
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Pending reviews banner */}
+      {reviewable.length > 0 && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+          <p className="text-sm font-medium text-amber-900 mb-2">
+            You have {reviewable.length} vendor {reviewable.length === 1 ? 'review' : 'reviews'} pending
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {reviewable.map((i) => (
+              <Link
+                key={i.id}
+                href={`/review/${i.id}`}
+                className="text-xs bg-amber-900 text-white px-3 py-1.5 rounded-lg hover:bg-amber-800 transition"
+              >
+                Review {i.vendors?.name} →
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-gray-400 text-sm">Loading...</p>

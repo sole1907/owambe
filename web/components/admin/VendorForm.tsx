@@ -176,34 +176,36 @@ export default function VendorForm({ vendorId, initialData }: Props) {
         </div>
       </section>
 
-      {/* Pricing */}
-      <section className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-        <h2 className="text-sm font-semibold text-gray-700">Pricing (₦)</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Min price</label>
-            <input
-              type="number"
-              min={0}
-              value={form.priceMin}
-              onChange={(e) => set('priceMin', e.target.value)}
-              placeholder="e.g. 50000"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
-            />
+      {/* Pricing — hidden for caterers since price is menu-based */}
+      {categories.find((c) => c.id === form.categoryId)?.slug !== 'caterers' && (
+        <section className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-700">Pricing (₦)</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Min price</label>
+              <input
+                type="number"
+                min={0}
+                value={form.priceMin}
+                onChange={(e) => set('priceMin', e.target.value)}
+                placeholder="e.g. 50000"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Max price</label>
+              <input
+                type="number"
+                min={0}
+                value={form.priceMax}
+                onChange={(e) => set('priceMax', e.target.value)}
+                placeholder="e.g. 200000"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
+              />
+            </div>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Max price</label>
-            <input
-              type="number"
-              min={0}
-              value={form.priceMax}
-              onChange={(e) => set('priceMax', e.target.value)}
-              placeholder="e.g. 200000"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
-            />
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Contact */}
       <section className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">

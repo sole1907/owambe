@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: owambe-api
+    runtime: node
+    rootDir: api
+    buildCommand: npm install && npm run build
+    startCommand: node dist/main
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        generateValue: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: POSTHOG_KEY
+        sync: false
+      - key: TEST_EMAIL_INTERCEPT
+        sync: false

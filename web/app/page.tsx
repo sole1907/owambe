@@ -11,7 +11,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!isLoading && user) {
-      router.replace('/dashboard')
+      router.replace(user.role === 'vendor' ? '/vendor/dashboard' : '/dashboard')
     }
   }, [user, isLoading, router])
 

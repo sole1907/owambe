@@ -8,7 +8,29 @@
       "Bash(npm install:*)",
       "Bash(npm run:*)",
       "Bash(npm uninstall:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(git merge *)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(/Users/sola.akanmu/Projects/owambe/web/node_modules/.bin/tsc --noEmit)",
+      "Bash(node_modules/.bin/tsc --noEmit --rootDir . /Users/sola.akanmu/Projects/owambe/.claude/worktrees/agent-a036dc3ec89d1f8e5/web/components/event/VendorsSection.tsx /Users/sola.akanmu/Projects/owambe/.claude/worktrees/agent-a036dc3ec89d1f8e5/web/app/vendor/menu/page.tsx /Users/sola.akanmu/Projects/owambe/.claude/worktrees/agent-a036dc3ec89d1f8e5/web/app/vendor/layout.tsx '/Users/sola.akanmu/Projects/owambe/.claude/worktrees/agent-a036dc3ec89d1f8e5/web/app/\\(dashboard\\)/vendors/[slug]/page.tsx')",
+      "Bash(cp /Users/sola.akanmu/Projects/owambe/.claude/worktrees/agent-a036dc3ec89d1f8e5/web/components/event/VendorsSection.tsx /Users/sola.akanmu/Projects/owambe/web/components/event/VendorsSection.tsx.bak)",
+      "Bash(cp /Users/sola.akanmu/Projects/owambe/.claude/worktrees/agent-a036dc3ec89d1f8e5/web/app/vendor/layout.tsx /Users/sola.akanmu/Projects/owambe/web/app/vendor/layout.tsx.bak)",
+      "Bash(cp '/Users/sola.akanmu/Projects/owambe/.claude/worktrees/agent-a036dc3ec89d1f8e5/web/app/\\(dashboard\\)/vendors/[slug]/page.tsx' '/Users/sola.akanmu/Projects/owambe/web/app/\\(dashboard\\)/vendors/[slug]/page.tsx.bak')",
+      "Bash(cp /Users/sola.akanmu/Projects/owambe/.claude/worktrees/agent-a036dc3ec89d1f8e5/web/components/event/VendorsSection.tsx /Users/sola.akanmu/Projects/owambe/web/components/event/VendorsSection.tsx)",
+      "Bash(cp /Users/sola.akanmu/Projects/owambe/.claude/worktrees/agent-a036dc3ec89d1f8e5/web/app/vendor/layout.tsx /Users/sola.akanmu/Projects/owambe/web/app/vendor/layout.tsx)",
+      "Bash(git -C /Users/sola.akanmu/Projects/owambe show worktree-agent-a036dc3ec89d1f8e5 --stat)",
+      "Bash(git -C /Users/sola.akanmu/Projects/owambe branch -a)",
+      "Bash(git -C /Users/sola.akanmu/Projects/owambe log worktree-agent-a036dc3ec89d1f8e5 --not develop --oneline)",
+      "Bash(git -C /Users/sola.akanmu/Projects/owambe/.claude/worktrees/agent-a036dc3ec89d1f8e5 status --short)",
+      "Bash(git -C /Users/sola.akanmu/Projects/owambe worktree remove --force .claude/worktrees/agent-a036dc3ec89d1f8e5)",
+      "Bash(git -C /Users/sola.akanmu/Projects/owambe worktree remove --force .claude/worktrees/agent-ac3ed2b9350b2fdfa)",
+      "Bash(git -C /Users/sola.akanmu/Projects/owambe branch -D worktree-agent-a036dc3ec89d1f8e5 worktree-agent-ac3ed2b9350b2fdfa)",
+      "Bash(git *)",
+      "Bash(/Users/sola.akanmu/Projects/owambe/api/node_modules/.bin/tsc --noEmit -p tsconfig.json)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(ln -sf /Users/sola.akanmu/Projects/owambe/api/node_modules api/node_modules)",
+      "Bash(ln -sf /Users/sola.akanmu/Projects/owambe/web/node_modules web/node_modules)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('jest',{}\\), indent=2\\)\\)\")"
     ]
   }
 }
