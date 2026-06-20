@@ -25,36 +25,64 @@ CREATE OR REPLACE FUNCTION _seed_vendor_account(
 DECLARE
   v_user_id UUID;
 BEGIN
-  IF EXISTS (SELECT 1 FROM auth.users WHERE email = p_email) THEN
-    -- Already exists — just make sure the vendor link is set
-    SELECT id INTO v_user_id FROM auth.users WHERE email = p_email;
-    UPDATE vendors SET user_id = v_user_id WHERE slug = p_vendor_slug AND user_id IS NULL;
-    RETURN;
+  -- Resolve the canonical user_id from whichever table already has this email
+  SELECT id INTO v_user_id FROM auth.users WHERE email = p_email;
+  IF v_user_id IS NULL THEN
+    SELECT id INTO v_user_id FROM users WHERE email = p_email;
+  END IF;
+  IF v_user_id IS NULL THEN
+    v_user_id := gen_random_uuid();
   END IF;
 
-  v_user_id := gen_random_uuid();
+  -- Create auth.users row if missing
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = p_email) THEN
+    INSERT INTO auth.users (
+      id, instance_id, aud, role,
+      email, encrypted_password,
+      email_confirmed_at, created_at, updated_at,
+      raw_app_meta_data, raw_user_meta_data,
+      is_super_admin,
+      confirmation_token, recovery_token, email_change_token_new, email_change
+    ) VALUES (
+      v_user_id,
+      '00000000-0000-0000-0000-000000000000',
+      'authenticated', 'authenticated',
+      p_email,
+      crypt(p_password, gen_salt('bf')),
+      NOW(), NOW(), NOW(),
+      '{"provider":"email","providers":["email"]}',
+      '{}',
+      false,
+      '', '', '', ''
+    );
+  END IF;
 
-  INSERT INTO auth.users (
-    id, email, encrypted_password,
-    email_confirmed_at, created_at, updated_at,
-    raw_app_meta_data, raw_user_meta_data,
-    aud, role, confirmation_token, recovery_token,
-    email_change_token_new, email_change
-  ) VALUES (
-    v_user_id,
-    p_email,
-    crypt(p_password, gen_salt('bf')),
-    NOW(), NOW(), NOW(),
-    '{"provider":"email","providers":["email"]}',
-    jsonb_build_object('sub', v_user_id::text, 'email', p_email),
-    'authenticated', 'authenticated',
-    '', '', '', ''
-  );
+  -- Create auth.identities row if missing
+  IF NOT EXISTS (SELECT 1 FROM auth.identities WHERE provider_id = p_email AND provider = 'email') THEN
+    INSERT INTO auth.identities (
+      id, user_id, identity_data,
+      provider, provider_id,
+      last_sign_in_at, created_at, updated_at
+    ) VALUES (
+      gen_random_uuid(),
+      v_user_id,
+      jsonb_build_object('sub', v_user_id::text, 'email', p_email),
+      'email',
+      p_email,
+      NOW(), NOW(), NOW()
+    );
+  END IF;
+
+  -- Create public.users row if missing (conflict on either id or email)
+  INSERT INTO users (id, email, full_name, role)
+  VALUES (v_user_id, p_email, p_full_name, 'vendor')
+  ON CONFLICT (id)    DO NOTHING;
 
   INSERT INTO users (id, email, full_name, role)
   VALUES (v_user_id, p_email, p_full_name, 'vendor')
-  ON CONFLICT (id) DO NOTHING;
+  ON CONFLICT (email) DO NOTHING;
 
+  -- Always ensure the vendor is linked to the correct user
   UPDATE vendors SET user_id = v_user_id WHERE slug = p_vendor_slug;
 END;
 $$ LANGUAGE plpgsql;

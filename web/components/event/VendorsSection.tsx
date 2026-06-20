@@ -186,9 +186,15 @@ const CANCELLATION_STATUS_BADGE: Record<CancellationStatus['status'], { label: s
 declare global {
   interface Window {
     PaystackPop: {
-      resumeTransaction: (accessCode: string) => {
-        openIframe: () => void
-      }
+      setup: (config: {
+        accessCode?: string
+        key?: string
+        email?: string
+        amount?: number
+        ref?: string
+        onSuccess: (transaction: { reference: string }) => void
+        onCancel: () => void
+      }) => { openIframe: () => void }
     }
   }
 }
@@ -608,31 +614,17 @@ function ShortlistCard({
         })
       }
 
-      const handler = window.PaystackPop.resumeTransaction(res.access_code)
+      const handler = window.PaystackPop.setup({
+        accessCode: res.access_code,
+        onSuccess: () => {
+          onCommitted(interest.id)
+          setPaying(false)
+        },
+        onCancel: () => {
+          setPaying(false)
+        },
+      })
       handler.openIframe()
-
-      const reference = res.reference
-      const poll = setInterval(async () => {
-        try {
-          const verify = await api.post<{ status: string }>(
-            '/payments/verify',
-            { reference },
-            token,
-          )
-          if (verify.status === 'success') {
-            clearInterval(poll)
-            onCommitted(interest.id)
-            setPaying(false)
-          }
-        } catch {
-          // keep polling
-        }
-      }, 3000)
-
-      setTimeout(() => {
-        clearInterval(poll)
-        setPaying(false)
-      }, 600000)
     } catch (err) {
       setPayError(err instanceof Error ? err.message : 'Payment failed.')
       setPaying(false)
