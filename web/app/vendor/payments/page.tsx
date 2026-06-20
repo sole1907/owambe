@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/context/auth'
 import { api } from '@/lib/api'
 
@@ -41,6 +41,7 @@ export default function VendorPaymentsPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [agreeError, setAgreeError] = useState<string | null>(null)
   const [termsChecked, setTermsChecked] = useState(false)
+  const termsRef = useRef<HTMLDivElement>(null)
 
   // Form state
   const [commitmentPct, setCommitmentPct] = useState(30)
@@ -107,6 +108,9 @@ export default function VendorPaymentsPage() {
       )
       setStructure(saved)
       setSaveSuccess(true)
+      if (!saved.is_active) {
+        setTimeout(() => termsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+      }
     } catch {
       setSaveError('Failed to save. Please try again.')
     } finally {
@@ -341,7 +345,7 @@ export default function VendorPaymentsPage() {
 
       {/* Section 4 — Terms agreement gate */}
       {structure && !structure.is_active && (
-        <div className="bg-white border-2 border-gray-300 rounded-xl px-6 py-6 space-y-4">
+        <div ref={termsRef} className="bg-white border-2 border-gray-300 rounded-xl px-6 py-6 space-y-4">
           <h2 className="text-base font-semibold text-gray-900">Activate your payment structure</h2>
           <p className="text-sm text-gray-600">
             Before going live, you must agree to the following terms:
