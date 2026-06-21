@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config'
 import * as crypto from 'crypto'
 import { SupabaseService } from '../supabase/supabase.service'
 import { EmailService } from '../email/email.service'
+import { PayoutsService } from '../payouts/payouts.service'
 
 @Injectable()
 export class PaymentsService {
@@ -21,6 +22,7 @@ export class PaymentsService {
     private supabase: SupabaseService,
     private email: EmailService,
     private config: ConfigService,
+    private payouts: PayoutsService,
   ) {
     this.secretKey = this.config.get<string>('paystackSecretKey') ?? ''
     if (!this.secretKey) {
@@ -317,6 +319,21 @@ export class PaymentsService {
         await this.confirmPayment(event.data.reference)
       } catch (err) {
         this.logger.error(`Webhook confirmPayment failed for ${event.data.reference}`, err)
+      }
+    }
+
+    if (
+      event.event === 'transfer.success' ||
+      event.event === 'transfer.failed' ||
+      event.event === 'transfer.reversed'
+    ) {
+      try {
+        await this.payouts.handleTransferWebhook(
+          event.event,
+          event.data as unknown as { transfer_code: string; status: string },
+        )
+      } catch (err) {
+        this.logger.error(`Transfer webhook handling failed for ${event.event}`, err)
       }
     }
   }

@@ -115,6 +115,14 @@ type ExtensionGrantedParams = {
   newDeadline: string
 }
 
+type PaymentReleasedParams = {
+  to: string // vendor email
+  vendorName: string
+  bucket: string // 'commitment' | 'materials' | 'balance'
+  amountNaira: number
+  eventTitle: string
+}
+
 // ─── Shared base template ────────────────────────────────────────────────────
 
 function base(content: string, interceptNote?: string): string {
@@ -726,5 +734,45 @@ export class EmailService {
       </p>
     `
     await this.send(params.to, `Refund extension granted — ${params.vendorName}`, content)
+  }
+
+  // ── 13. Payment released → notify vendor ─────────────────────────────────────
+
+  async sendPaymentReleased(params: PaymentReleasedParams) {
+    const bucketLabel =
+      params.bucket === 'commitment'
+        ? 'Commitment fee'
+        : params.bucket === 'materials'
+          ? 'Materials fee'
+          : 'Balance payment'
+
+    const content = `
+      ${heading('Payment released to your account')}
+      ${subtext(`Hi <strong style="color:#111;">${params.vendorName}</strong>, a payment has been transferred to your registered bank account.`)}
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#f0fdf4;border-radius:12px;border:1px solid #86efac;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 4px;font-size:14px;color:#166534;">
+            <strong>${bucketLabel}</strong> for <strong>${params.eventTitle}</strong>
+          </p>
+          <p style="margin:8px 0 0;font-size:22px;font-weight:700;color:#15803d;">
+            ₦${params.amountNaira.toLocaleString('en-NG')}
+          </p>
+          <p style="margin:8px 0 0;font-size:12px;color:#166534;">
+            Allow 1–3 business days for the funds to appear in your account.
+          </p>
+        </td></tr>
+      </table>
+
+      <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
+        If you have any questions, reply to this email and we'll be happy to help.
+      </p>
+    `
+    await this.send(
+      params.to,
+      `Payment of ₦${params.amountNaira.toLocaleString('en-NG')} released — ${params.eventTitle}`,
+      content,
+    )
   }
 }

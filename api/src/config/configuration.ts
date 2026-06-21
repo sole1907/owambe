@@ -11,6 +11,7 @@ export default () => ({
   },
   appUrl: process.env.APP_URL || 'http://localhost:3000',
   paystackSecretKey: process.env.PAYSTACK_SECRET_KEY,
+  cronSecret: process.env.CRON_SECRET,
   posthogKey: process.env.POSTHOG_KEY,
   testEmailIntercept: process.env.TEST_EMAIL_INTERCEPT,
 })

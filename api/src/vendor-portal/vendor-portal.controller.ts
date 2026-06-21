@@ -5,12 +5,16 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { RolesGuard } from '../auth/guards/roles.guard'
 import { Roles } from '../auth/decorators/roles.decorator'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
+import { PayoutsService } from '../payouts/payouts.service'
 
 @Controller('vendor-portal')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('vendor')
 export class VendorPortalController {
-  constructor(private portal: VendorPortalService) {}
+  constructor(
+    private portal: VendorPortalService,
+    private payouts: PayoutsService,
+  ) {}
 
   @Get('profile')
   getProfile(@CurrentUser() user: any) {
@@ -120,6 +124,27 @@ export class VendorPortalController {
   @Delete('decorator/packages/:id')
   deleteDecoratorPackage(@CurrentUser() user: any, @Param('id') id: string) {
     return this.portal.deleteDecoratorPackage(user.id, id)
+  }
+
+  // ── Bank account management ───────────────────────────────────────────────
+
+  @Get('bank-account')
+  getBankAccount(@CurrentUser() user: any) {
+    return this.payouts.getBankAccount(user.id)
+  }
+
+  @Post('bank-account/verify')
+  verifyBankAccount(@Body() body: { accountNumber: string; bankCode: string }) {
+    return this.payouts.verifyBankAccount(body.accountNumber, body.bankCode)
+  }
+
+  @Post('bank-account')
+  saveBankAccount(
+    @CurrentUser() user: any,
+    @Body()
+    body: { accountNumber: string; bankCode: string; bankName: string; accountName: string },
+  ) {
+    return this.payouts.saveBankAccount(user.id, body)
   }
 
   // ── Payment structure management ──────────────────────────────────────────
