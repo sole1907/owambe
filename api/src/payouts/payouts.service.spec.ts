@@ -23,7 +23,12 @@ const mockConfig = {
   }),
 }
 
-const vendorRow = { id: 'ven-1', name: 'Royal Feast', email: 'vendor@test.com', is_test_vendor: true }
+const vendorRow = {
+  id: 'ven-1',
+  name: 'Royal Feast',
+  email: 'vendor@test.com',
+  is_test_vendor: true,
+}
 const bankAccountRow = {
   id: 'ba-1',
   account_number: '0000000001',
@@ -99,20 +104,27 @@ describe('getBankAccount()', () => {
 
 describe('verifyBankAccount()', () => {
   it('calls Paystack resolve and returns account name', async () => {
-    mockFetch({ status: true, data: { account_name: 'Royal Feast Catering', account_number: '0000000001' } })
+    mockFetch({
+      status: true,
+      data: { account_name: 'Royal Feast Catering', account_number: '0000000001' },
+    })
     const { service } = makeService()
     const result = await service.verifyBankAccount('0000000001', '044')
     expect(result).toMatchObject({ account_name: 'Royal Feast Catering' })
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining('/bank/resolve'),
-      expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer sk_test_secret' }) }),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer sk_test_secret' }),
+      }),
     )
   })
 
   it('throws when Paystack returns status false', async () => {
     mockFetch({ status: false, message: 'Account not found', data: null })
     const { service } = makeService()
-    await expect(service.verifyBankAccount('0000000000', '044')).rejects.toThrow(InternalServerErrorException)
+    await expect(service.verifyBankAccount('0000000000', '044')).rejects.toThrow(
+      InternalServerErrorException,
+    )
   })
 })
 
@@ -236,7 +248,9 @@ describe('processScheduleItem()', () => {
 
   it('reuses existing recipient code without calling /transferrecipient', async () => {
     const { service } = makeService({
-      vendor_bank_accounts: qm({ data: { ...bankAccountRow, paystack_recipient_code: 'RCP_existing' } }),
+      vendor_bank_accounts: qm({
+        data: { ...bankAccountRow, paystack_recipient_code: 'RCP_existing' },
+      }),
       interest_payment_schedule: qm({ data: scheduleItemRow }),
     })
     mockFetch({ status: true, data: { transfer_code: 'TRF_xyz', status: 'pending' } })
@@ -250,7 +264,9 @@ describe('processScheduleItem()', () => {
 
   it('marks released and sends email when Paystack returns status success', async () => {
     const { service } = makeService({
-      vendor_bank_accounts: qm({ data: { ...bankAccountRow, paystack_recipient_code: 'RCP_existing' } }),
+      vendor_bank_accounts: qm({
+        data: { ...bankAccountRow, paystack_recipient_code: 'RCP_existing' },
+      }),
       interest_payment_schedule: qm({ data: scheduleItemRow }),
     })
     mockFetch({ status: true, data: { transfer_code: 'TRF_xyz', status: 'success' } })
@@ -270,7 +286,9 @@ describe('processScheduleItem()', () => {
   it('uses correct bucket label for materials bucket', async () => {
     const materialsItem = { ...baseItem, bucket: 'materials', amount_kobo: 100000 }
     const { service } = makeService({
-      vendor_bank_accounts: qm({ data: { ...bankAccountRow, paystack_recipient_code: 'RCP_existing' } }),
+      vendor_bank_accounts: qm({
+        data: { ...bankAccountRow, paystack_recipient_code: 'RCP_existing' },
+      }),
       interest_payment_schedule: qm({ data: scheduleItemRow }),
     })
     mockFetch({ status: true, data: { transfer_code: 'TRF_mat', status: 'success' } })

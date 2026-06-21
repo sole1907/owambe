@@ -191,7 +191,7 @@ declare global {
         email: string
         amount: number
         ref: string
-        callback: (response: { reference: string }) => void
+        callback: (response: { reference: string }) => void | Promise<void>
         onClose: () => void
       }) => { openIframe: () => void }
     }
@@ -564,6 +564,7 @@ function ShortlistCard({
   const rank = RANK_LABEL[interest.preference_rank - 1]
   const [paying, setPaying] = useState(false)
   const [payError, setPayError] = useState('')
+  const [feeBreakdown, setFeeBreakdown] = useState<{ commitmentKobo: number; platformFeeKobo: number } | null>(null)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState('')
@@ -599,8 +600,26 @@ function ShortlistCard({
     try {
       const res = await api.post<{
         reference: string
-        access_code: string
         amount_kobo: number
+        platform_fee_kobo: number
+      }>('/payments/initialize', { interestId: interest.id }, token)
+      setFeeBreakdown({ commitmentKobo: res.amount_kobo, platformFeeKobo: res.platform_fee_kobo })
+      setPaying(false)
+    } catch (err) {
+      setPayError(err instanceof Error ? err.message : 'Payment failed.')
+      setPaying(false)
+    }
+  }
+
+  const handleConfirmPay = async () => {
+    if (!token || !feeBreakdown) return
+    setPaying(true)
+    setPayError('')
+    try {
+      const res = await api.post<{
+        reference: string
+        amount_kobo: number
+        platform_fee_kobo: number
       }>('/payments/initialize', { interestId: interest.id }, token)
 
       if (!window.PaystackPop) {
@@ -619,9 +638,15 @@ function ShortlistCard({
       const handler = window.PaystackPop.setup({
         key: paystackKey,
         email: user!.email,
-        amount: res.amount_kobo,
+        amount: res.amount_kobo + res.platform_fee_kobo,
         ref: res.reference,
-        callback: () => {
+        callback: async (response: { reference: string }) => {
+          try {
+            await api.post('/payments/verify', { reference: response.reference }, token)
+          } catch {
+            // verification failure is non-fatal — webhook will confirm async
+          }
+          setFeeBreakdown(null)
           onCommitted(interest.id)
           setPaying(false)
         },
@@ -738,22 +763,61 @@ function ShortlistCard({
       )}
 
       {interest.status === 'available' && !confirmCancel && (
-        <div className="mt-3 pl-10">
-          {payError && <p className="text-xs text-red-600 mb-2">{payError}</p>}
-          <button
-            onClick={handlePay}
-            disabled={paying}
-            className="text-xs bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition font-medium"
-          >
-            {paying
-              ? 'Opening payment...'
-              : commitmentFee
-              ? `Pay commitment fee — ${formatNaira(commitmentFee)}`
-              : 'Pay commitment fee'}
-          </button>
-          <p className="text-xs text-gray-400 mt-1">
-            {vendor.commitment_fee_percentage}% of {priceBasis ? formatNaira(priceBasis) : 'agreed price'} · held until after your event
-          </p>
+        <div className="mt-3 pl-10 space-y-2">
+          {payError && <p className="text-xs text-red-600">{payError}</p>}
+
+          {/* Fee breakdown confirmation */}
+          {feeBreakdown ? (
+            <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 space-y-2">
+              <p className="text-xs font-semibold text-gray-700">Payment breakdown</p>
+              <div className="space-y-1 text-xs text-gray-600">
+                <div className="flex justify-between">
+                  <span>Commitment fee ({vendor.commitment_fee_percentage}%)</span>
+                  <span className="font-medium">{formatNaira(feeBreakdown.commitmentKobo / 100)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Platform fee</span>
+                  <span className="font-medium">{formatNaira(feeBreakdown.platformFeeKobo / 100)}</span>
+                </div>
+                <div className="flex justify-between border-t border-gray-200 pt-1 mt-1 font-semibold text-gray-900">
+                  <span>Total due now</span>
+                  <span>{formatNaira((feeBreakdown.commitmentKobo + feeBreakdown.platformFeeKobo) / 100)}</span>
+                </div>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={handleConfirmPay}
+                  disabled={paying}
+                  className="text-xs bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition font-medium"
+                >
+                  {paying ? 'Opening payment…' : 'Confirm & pay'}
+                </button>
+                <button
+                  onClick={() => setFeeBreakdown(null)}
+                  className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={handlePay}
+                disabled={paying}
+                className="text-xs bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition font-medium"
+              >
+                {paying
+                  ? 'Loading…'
+                  : commitmentFee
+                  ? `Pay commitment fee — ${formatNaira(commitmentFee)}`
+                  : 'Pay commitment fee'}
+              </button>
+              <p className="text-xs text-gray-400">
+                {vendor.commitment_fee_percentage}% of {priceBasis ? formatNaira(priceBasis) : 'agreed price'} · held until after your event
+              </p>
+            </>
+          )}
         </div>
       )}
 

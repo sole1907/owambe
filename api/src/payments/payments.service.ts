@@ -60,6 +60,13 @@ export class PaymentsService {
     return Math.round((agreedPrice * commitmentPct) / 100) * 100
   }
 
+  private calculatePlatformFeeKobo(agreedPriceNaira: number): number {
+    const pct = this.config.get<number>('platformFeePct') ?? 5
+    const capNaira = this.config.get<number>('platformFeeCapNaira') ?? 50000
+    const feeNaira = Math.min((agreedPriceNaira * pct) / 100, capNaira)
+    return Math.round(feeNaira) * 100
+  }
+
   // ── Initialize a commitment fee payment ──────────────────────────────────────
 
   async initializePayment(userId: string, interestId: string) {
@@ -94,7 +101,9 @@ export class PaymentsService {
     // Check for existing pending/success payment
     const { data: existingPayment } = await client
       .from('commitment_payments')
-      .select('id, status, paystack_reference, paystack_access_code, amount_kobo, commitment_pct')
+      .select(
+        'id, status, paystack_reference, paystack_access_code, amount_kobo, commitment_pct, platform_fee_kobo',
+      )
       .eq('interest_id', interestId)
       .in('status', ['pending', 'success'])
       .single()
@@ -109,6 +118,7 @@ export class PaymentsService {
         reference: existingPayment.paystack_reference,
         access_code: existingPayment.paystack_access_code,
         amount_kobo: existingPayment.amount_kobo,
+        platform_fee_kobo: existingPayment.platform_fee_kobo,
         commitment_pct: existingPayment.commitment_pct,
       }
     }
@@ -125,7 +135,9 @@ export class PaymentsService {
     }
 
     const commitmentPct = vendor.commitment_fee_percentage
-    const amountKobo = this.calculateCommitmentKobo(agreedPrice, commitmentPct)
+    const commitmentKobo = this.calculateCommitmentKobo(agreedPrice, commitmentPct)
+    const platformFeeKobo = this.calculatePlatformFeeKobo(agreedPrice)
+    const totalChargeKobo = commitmentKobo + platformFeeKobo
 
     // Get user email
     const { data: user } = await client
@@ -139,14 +151,14 @@ export class PaymentsService {
     const reference = `owambe-${interestId}-${Date.now()}`
     const appUrl = this.config.get<string>('appUrl') ?? 'http://localhost:3000'
 
-    // Initialize with Paystack
+    // Initialize with Paystack — total includes platform fee
     const paystackData = await this.paystackPost<{
       authorization_url: string
       access_code: string
       reference: string
     }>('/transaction/initialize', {
       email: user.email,
-      amount: amountKobo,
+      amount: totalChargeKobo,
       reference,
       currency: 'NGN',
       callback_url: `${appUrl}/payment/callback`,
@@ -160,13 +172,14 @@ export class PaymentsService {
       },
     })
 
-    // Store pending payment record
+    // Store pending payment — amount_kobo is vendor's portion only
     await client.from('commitment_payments').insert({
       interest_id: interestId,
       event_id: interest.event_id,
       vendor_id: interest.vendor_id,
       user_id: userId,
-      amount_kobo: amountKobo,
+      amount_kobo: commitmentKobo,
+      platform_fee_kobo: platformFeeKobo,
       commitment_pct: commitmentPct,
       paystack_reference: paystackData.reference,
       paystack_access_code: paystackData.access_code,
@@ -177,7 +190,8 @@ export class PaymentsService {
       reference: paystackData.reference,
       access_code: paystackData.access_code,
       authorization_url: paystackData.authorization_url,
-      amount_kobo: amountKobo,
+      amount_kobo: commitmentKobo,
+      platform_fee_kobo: platformFeeKobo,
       commitment_pct: commitmentPct,
     }
   }
