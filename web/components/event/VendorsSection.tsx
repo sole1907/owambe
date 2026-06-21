@@ -186,15 +186,13 @@ const CANCELLATION_STATUS_BADGE: Record<CancellationStatus['status'], { label: s
 declare global {
   interface Window {
     PaystackPop: {
-      setup: (config: {
-        accessCode?: string
-        key?: string
-        email?: string
-        amount?: number
-        ref?: string
-        onSuccess: (transaction: { reference: string }) => void
-        onCancel: () => void
-      }) => { openIframe: () => void }
+      resumeTransaction: (
+        accessCode: string,
+        callbacks: {
+          onSuccess: (transaction: { reference: string }) => void
+          onCancel: () => void
+        },
+      ) => void
     }
   }
 }
@@ -607,15 +605,14 @@ function ShortlistCard({
       if (!window.PaystackPop) {
         await new Promise<void>((resolve, reject) => {
           const script = document.createElement('script')
-          script.src = 'https://js.paystack.co/v1/inline.js'
+          script.src = 'https://checkout.paystack.com/assets/js/popup.js'
           script.onload = () => resolve()
           script.onerror = () => reject(new Error('Failed to load Paystack'))
           document.body.appendChild(script)
         })
       }
 
-      const handler = window.PaystackPop.setup({
-        accessCode: res.access_code,
+      window.PaystackPop.resumeTransaction(res.access_code, {
         onSuccess: () => {
           onCommitted(interest.id)
           setPaying(false)
@@ -624,7 +621,6 @@ function ShortlistCard({
           setPaying(false)
         },
       })
-      handler.openIframe()
     } catch (err) {
       setPayError(err instanceof Error ? err.message : 'Payment failed.')
       setPaying(false)
