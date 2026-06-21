@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
-} from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { RolesGuard } from '../auth/guards/roles.guard'
 import { Roles } from '../auth/decorators/roles.decorator'
@@ -49,7 +40,13 @@ export class VendorInterestsController {
     @Body() body: { offeredPrice: number; isFinalOffer?: boolean },
     @CurrentUser() user: any,
   ) {
-    return this.service.counterBack(eventId, interestId, user.id, body.offeredPrice, body.isFinalOffer)
+    return this.service.counterBack(
+      eventId,
+      interestId,
+      user.id,
+      body.offeredPrice,
+      body.isFinalOffer,
+    )
   }
 
   @Post('events/:eventId/vendor-interests/:interestId/accept-counter')

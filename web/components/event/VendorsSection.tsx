@@ -186,13 +186,14 @@ const CANCELLATION_STATUS_BADGE: Record<CancellationStatus['status'], { label: s
 declare global {
   interface Window {
     PaystackPop: {
-      resumeTransaction: (
-        accessCode: string,
-        callbacks: {
-          onSuccess: (transaction: { reference: string }) => void
-          onCancel: () => void
-        },
-      ) => void
+      setup: (config: {
+        key: string
+        email: string
+        amount: number
+        ref: string
+        callback: (response: { reference: string }) => void
+        onClose: () => void
+      }) => { openIframe: () => void }
     }
   }
 }
@@ -558,7 +559,7 @@ function ShortlistCard({
   onCommitted: (id: string) => void
   onCancelled: (id: string) => void
 }) {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const vendor = interest.vendors
   const rank = RANK_LABEL[interest.preference_rank - 1]
   const [paying, setPaying] = useState(false)
@@ -605,22 +606,30 @@ function ShortlistCard({
       if (!window.PaystackPop) {
         await new Promise<void>((resolve, reject) => {
           const script = document.createElement('script')
-          script.src = 'https://checkout.paystack.com/assets/js/popup.js'
+          script.src = 'https://js.paystack.co/v1/inline.js'
           script.onload = () => resolve()
           script.onerror = () => reject(new Error('Failed to load Paystack'))
           document.body.appendChild(script)
         })
       }
 
-      window.PaystackPop.resumeTransaction(res.access_code, {
-        onSuccess: () => {
+      const paystackKey = process.env.NEXT_PUBLIC_PAYSTACK_KEY
+      if (!paystackKey) throw new Error('Paystack key not configured')
+
+      const handler = window.PaystackPop.setup({
+        key: paystackKey,
+        email: user!.email,
+        amount: res.amount_kobo,
+        ref: res.reference,
+        callback: () => {
           onCommitted(interest.id)
           setPaying(false)
         },
-        onCancel: () => {
+        onClose: () => {
           setPaying(false)
         },
       })
+      handler.openIframe()
     } catch (err) {
       setPayError(err instanceof Error ? err.message : 'Payment failed.')
       setPaying(false)

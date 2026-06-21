@@ -1,4 +1,4 @@
 export class SubmitReviewDto {
-  rating: number  // 1–5
+  rating: number // 1–5
   comment?: string
 }

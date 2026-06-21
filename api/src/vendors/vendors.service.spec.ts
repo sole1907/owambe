@@ -121,15 +121,15 @@ describe('VendorsService', () => {
   describe('getMenuCatalog()', () => {
     it('returns empty array when caterers category not found', async () => {
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn()
-        .mockReturnValueOnce(q({ data: null, error: null })) // vendor_categories
+      supabase._client.from = jest.fn().mockReturnValueOnce(q({ data: null, error: null })) // vendor_categories
       const result = await svc.getMenuCatalog('Lagos')
       expect(result).toEqual([])
     })
 
     it('returns empty array when no caterer vendors in city', async () => {
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn()
+      supabase._client.from = jest
+        .fn()
         .mockReturnValueOnce(q({ data: { id: 'cat-1' }, error: null })) // vendor_categories
         .mockReturnValueOnce(q({ data: [], error: null })) // vendors
       const result = await svc.getMenuCatalog('Lagos')
@@ -138,10 +138,20 @@ describe('VendorsService', () => {
 
     it('returns grouped and deduplicated menu catalog', async () => {
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn()
+      supabase._client.from = jest
+        .fn()
         .mockReturnValueOnce(q({ data: { id: 'cat-1' }, error: null })) // vendor_categories
         .mockReturnValueOnce(q({ data: [{ id: 'ven-1' }, { id: 'ven-2' }], error: null })) // vendors
-        .mockReturnValueOnce(q({ data: [{ name: 'Jollof Rice', category: 'Rice' }, { name: 'Jollof Rice', category: 'Rice' }, { name: 'Beans', category: 'Proteins' }], error: null })) // caterer_menu_items
+        .mockReturnValueOnce(
+          q({
+            data: [
+              { name: 'Jollof Rice', category: 'Rice' },
+              { name: 'Jollof Rice', category: 'Rice' },
+              { name: 'Beans', category: 'Proteins' },
+            ],
+            error: null,
+          }),
+        ) // caterer_menu_items
       const result = await svc.getMenuCatalog('Lagos')
       expect(result.length).toBeGreaterThan(0)
       const rice = result.find((g) => g.category === 'Rice')
@@ -158,9 +168,19 @@ describe('VendorsService', () => {
     })
 
     it('returns menu items for vendor', async () => {
-      const menuItems = [{ id: 'item-1', name: 'Jollof Rice', category: 'Rice', description: null, sort_order: 1, caterer_menu_pricing_tiers: [] }]
+      const menuItems = [
+        {
+          id: 'item-1',
+          name: 'Jollof Rice',
+          category: 'Rice',
+          description: null,
+          sort_order: 1,
+          caterer_menu_pricing_tiers: [],
+        },
+      ]
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn()
+      supabase._client.from = jest
+        .fn()
         .mockReturnValueOnce(q({ data: { id: 'ven-1' }, error: null })) // vendors
         .mockReturnValueOnce(q({ data: menuItems, error: null })) // caterer_menu_items
       const result = await svc.getVendorMenu('vendor-slug')
@@ -169,7 +189,8 @@ describe('VendorsService', () => {
 
     it('returns empty array on error', async () => {
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn()
+      supabase._client.from = jest
+        .fn()
         .mockReturnValueOnce(q({ data: { id: 'ven-1' }, error: null }))
         .mockReturnValueOnce(q({ data: null, error: { message: 'DB error' } }))
       const result = await svc.getVendorMenu('vendor-slug')
@@ -187,7 +208,8 @@ describe('VendorsService', () => {
 
     it('returns empty array when no decorators in city', async () => {
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn()
+      supabase._client.from = jest
+        .fn()
         .mockReturnValueOnce(q({ data: { id: 'cat-2' }, error: null }))
         .mockReturnValueOnce(q({ data: [], error: null }))
       const result = await svc.getStyleCatalog('Lagos')
@@ -196,10 +218,16 @@ describe('VendorsService', () => {
 
     it('returns deduplicated styles across vendors', async () => {
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn()
+      supabase._client.from = jest
+        .fn()
         .mockReturnValueOnce(q({ data: { id: 'cat-2' }, error: null }))
         .mockReturnValueOnce(q({ data: [{ id: 'ven-1' }, { id: 'ven-2' }], error: null }))
-        .mockReturnValueOnce(q({ data: [{ style: 'Modern' }, { style: 'Modern' }, { style: 'Traditional' }], error: null }))
+        .mockReturnValueOnce(
+          q({
+            data: [{ style: 'Modern' }, { style: 'Modern' }, { style: 'Traditional' }],
+            error: null,
+          }),
+        )
       const result = await svc.getStyleCatalog('Lagos')
       expect(result).toHaveLength(2)
       expect(result.map((s) => s.style)).toEqual(['Modern', 'Traditional'])
@@ -215,9 +243,19 @@ describe('VendorsService', () => {
     })
 
     it('returns decorator packages for vendor', async () => {
-      const packages = [{ id: 'pkg-1', name: 'Classic', description: 'Elegant', includes: ['Flowers'], sort_order: 1, decorator_package_guest_tiers: [] }]
+      const packages = [
+        {
+          id: 'pkg-1',
+          name: 'Classic',
+          description: 'Elegant',
+          includes: ['Flowers'],
+          sort_order: 1,
+          decorator_package_guest_tiers: [],
+        },
+      ]
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn()
+      supabase._client.from = jest
+        .fn()
         .mockReturnValueOnce(q({ data: { id: 'ven-1' }, error: null }))
         .mockReturnValueOnce(q({ data: packages, error: null }))
       const result = await svc.getVendorPackages('vendor-slug')
@@ -236,7 +274,9 @@ describe('VendorsService', () => {
     it('throws InternalServerErrorException on DB error', async () => {
       const { InternalServerErrorException } = require('@nestjs/common')
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn().mockReturnValueOnce(q({ data: null, error: { message: 'DB error' } }))
+      supabase._client.from = jest
+        .fn()
+        .mockReturnValueOnce(q({ data: null, error: { message: 'DB error' } }))
       await expect(svc.adminGetAllVendors()).rejects.toThrow(InternalServerErrorException)
     })
   })
@@ -251,7 +291,9 @@ describe('VendorsService', () => {
 
     it('throws NotFoundException for unknown id', async () => {
       const { svc, supabase } = makeService()
-      supabase._client.from = jest.fn().mockReturnValueOnce(q({ data: null, error: { message: 'not found' } }))
+      supabase._client.from = jest
+        .fn()
+        .mockReturnValueOnce(q({ data: null, error: { message: 'not found' } }))
       await expect(svc.adminGetVendor('unknown-id')).rejects.toThrow(NotFoundException)
     })
   })
@@ -260,7 +302,8 @@ describe('VendorsService', () => {
     it('creates auth user, user record, and links vendor', async () => {
       const { svc, supabase } = makeService()
       // auth.admin.createUser is already mocked by makeSupabaseMock to return user-id-1
-      supabase._client.from = jest.fn()
+      supabase._client.from = jest
+        .fn()
         .mockReturnValueOnce(q({ data: null, error: null })) // users insert
         .mockReturnValueOnce(q({ data: null, error: null })) // vendors update
       const result = await svc.adminCreateVendorUser('ven-1', 'vendor@test.com', 'Pass123!')
@@ -271,8 +314,12 @@ describe('VendorsService', () => {
     it('throws InternalServerErrorException when auth creation fails', async () => {
       const { InternalServerErrorException } = require('@nestjs/common')
       const { svc, supabase } = makeService()
-      supabase._client.auth.admin.createUser = jest.fn().mockResolvedValue({ data: { user: null }, error: { message: 'Auth error' } })
-      await expect(svc.adminCreateVendorUser('ven-1', 'bad@test.com', 'Pass123!')).rejects.toThrow(InternalServerErrorException)
+      supabase._client.auth.admin.createUser = jest
+        .fn()
+        .mockResolvedValue({ data: { user: null }, error: { message: 'Auth error' } })
+      await expect(svc.adminCreateVendorUser('ven-1', 'bad@test.com', 'Pass123!')).rejects.toThrow(
+        InternalServerErrorException,
+      )
     })
   })
 })

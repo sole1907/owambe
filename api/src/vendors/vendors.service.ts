@@ -116,7 +116,9 @@ export class VendorsService {
 
     const { data, error } = await client
       .from('caterer_menu_items')
-      .select('id, name, category, description, sort_order, caterer_menu_pricing_tiers (id, min_servings, max_servings, price_per_serving)')
+      .select(
+        'id, name, category, description, sort_order, caterer_menu_pricing_tiers (id, min_servings, max_servings, price_per_serving)',
+      )
       .eq('vendor_id', vendor.id)
       .eq('is_active', true)
       .order('category')
@@ -172,7 +174,9 @@ export class VendorsService {
 
     const { data, error } = await client
       .from('decorator_packages')
-      .select('id, name, description, includes, sort_order, decorator_package_guest_tiers (id, min_guests, max_guests, price)')
+      .select(
+        'id, name, description, includes, sort_order, decorator_package_guest_tiers (id, min_guests, max_guests, price)',
+      )
       .eq('vendor_id', vendor.id)
       .eq('is_active', true)
       .order('sort_order')
@@ -213,7 +217,12 @@ export class VendorsService {
     const client = this.supabase.getClient()
 
     const [{ data: event, error: eventError }, { data: plan }] = await Promise.all([
-      client.from('events').select('city, guest_count_estimate, budget_estimate').eq('id', eventId).eq('user_id', userId).single(),
+      client
+        .from('events')
+        .select('city, guest_count_estimate, budget_estimate')
+        .eq('id', eventId)
+        .eq('user_id', userId)
+        .single(),
       client.from('event_plans').select('budget_breakdown').eq('event_id', eventId).single(),
     ])
 
@@ -258,7 +267,11 @@ export class VendorsService {
 
     // Exclude venues too small for guest count
     const eligible = (data ?? []).filter((v: any) => {
-      if (v.vendor_categories?.id === venueCategory?.id && v.capacity && event.guest_count_estimate) {
+      if (
+        v.vendor_categories?.id === venueCategory?.id &&
+        v.capacity &&
+        event.guest_count_estimate
+      ) {
         return v.capacity >= event.guest_count_estimate
       }
       return true
@@ -290,7 +303,12 @@ export class VendorsService {
         ? (v as any).decorator_styles.map((s: any) => s.style)
         : []
 
-      const enriched = { ...v, is_within_budget: fits, menu_item_names: menuItemNames, style_names: styleNames }
+      const enriched = {
+        ...v,
+        is_within_budget: fits,
+        menu_item_names: menuItemNames,
+        style_names: styleNames,
+      }
       if (fits) {
         withinBudget.push(enriched)
       } else {

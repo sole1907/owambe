@@ -1,8 +1,7 @@
 'use client'
 
-'use client'
-
 import { useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
 import { useAuth } from '@/context/auth'
 import { api } from '@/lib/api'
 
@@ -200,7 +199,7 @@ export default function VendorProfilePage() {
           <div className="grid grid-cols-3 gap-3 mb-4">
             {photos.map((url) => (
               <div key={url} className="relative group aspect-square rounded-xl overflow-hidden bg-gray-100">
-                <img src={url} alt="" className="w-full h-full object-cover" />
+                <Image src={url} alt="" fill className="object-cover" />
                 <button
                   type="button"
                   onClick={() => handlePhotoDelete(url)}

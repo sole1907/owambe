@@ -84,10 +84,7 @@ export class AdminVendorsController {
   }
 
   @Post(':id/create-account')
-  createVendorUser(
-    @Param('id') id: string,
-    @Body() body: { email: string; password: string },
-  ) {
+  createVendorUser(@Param('id') id: string, @Body() body: { email: string; password: string }) {
     return this.vendors.adminCreateVendorUser(id, body.email, body.password)
   }
 }

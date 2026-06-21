@@ -30,14 +30,16 @@ export class VendorInterestsService {
 
     const { data, error } = await client
       .from('vendor_interests')
-      .select(`
+      .select(
+        `
         id, preference_rank, status, event_date, expires_at,
         vendor_response_at, vendor_notes, created_at,
         offered_price, counter_price, agreed_price, is_final_offer,
         vendors (id, name, slug, city, price_min, price_max, rating, photos,
           commitment_fee_percentage, email, phone, whatsapp,
           vendor_categories (id, name, slug))
-      `)
+      `,
+      )
       .eq('event_id', eventId)
       .order('preference_rank', { ascending: true })
 
@@ -63,9 +65,11 @@ export class VendorInterestsService {
 
     const { data: vendor, error: vendorError } = await client
       .from('vendors')
-      .select(`id, name, email, whatsapp, city, capacity,
+      .select(
+        `id, name, email, whatsapp, city, capacity,
         vendor_categories (id, name, slug),
-        vendor_availability (date, status)`)
+        vendor_availability (date, status)`,
+      )
       .eq('id', dto.vendorId)
       .eq('is_active', true)
       .single()
@@ -93,7 +97,8 @@ export class VendorInterestsService {
       .eq('vendor_id', dto.vendorId)
       .single()
 
-    if (existing) throw new BadRequestException('This vendor is already on your shortlist for this event.')
+    if (existing)
+      throw new BadRequestException('This vendor is already on your shortlist for this event.')
 
     const { data: slotTaken } = await client
       .from('vendor_interests')
@@ -125,13 +130,20 @@ export class VendorInterestsService {
 
     // For caterers: compute offered_price from menu selections
     let computedOfferedPrice = dto.offeredPrice ?? null
-    let menuLineItems: { item: any; servings: number; pricePerServing: number; subtotal: number }[] = []
+    const menuLineItems: {
+      item: any
+      servings: number
+      pricePerServing: number
+      subtotal: number
+    }[] = []
 
     if (dto.menuSelections?.length && v.vendor_categories?.slug === 'caterers') {
       const itemIds = dto.menuSelections.map((s: MenuSelectionDto) => s.menuItemId)
       const { data: menuItems } = await client
         .from('caterer_menu_items')
-        .select('id, name, category, caterer_menu_pricing_tiers (min_servings, max_servings, price_per_serving)')
+        .select(
+          'id, name, category, caterer_menu_pricing_tiers (min_servings, max_servings, price_per_serving)',
+        )
         .in('id', itemIds)
         .eq('vendor_id', dto.vendorId)
         .eq('is_active', true)
@@ -141,20 +153,35 @@ export class VendorInterestsService {
         const item = (menuItems ?? []).find((m: any) => m.id === sel.menuItemId)
         if (!item) continue
         const tiers: any[] = item.caterer_menu_pricing_tiers ?? []
-        const tier = tiers
-          .sort((a: any, b: any) => b.min_servings - a.min_servings)
-          .find((t: any) => sel.servings >= t.min_servings && (t.max_servings === null || sel.servings <= t.max_servings))
-          ?? tiers.sort((a: any, b: any) => a.min_servings - b.min_servings)[0]
+        const tier =
+          tiers
+            .sort((a: any, b: any) => b.min_servings - a.min_servings)
+            .find(
+              (t: any) =>
+                sel.servings >= t.min_servings &&
+                (t.max_servings === null || sel.servings <= t.max_servings),
+            ) ?? tiers.sort((a: any, b: any) => a.min_servings - b.min_servings)[0]
         if (!tier) continue
         const subtotal = sel.servings * tier.price_per_serving
         total += subtotal
-        menuLineItems.push({ item, servings: sel.servings, pricePerServing: tier.price_per_serving, subtotal })
+        menuLineItems.push({
+          item,
+          servings: sel.servings,
+          pricePerServing: tier.price_per_serving,
+          subtotal,
+        })
       }
       if (total > 0) computedOfferedPrice = total
     }
 
     // For decorators: compute offered_price from the chosen package's guest tier
-    let decoratorSelection: { packageId: string; packageName: string; includes: string[]; guestCount: number; price: number } | null = null
+    let decoratorSelection: {
+      packageId: string
+      packageName: string
+      includes: string[]
+      guestCount: number
+      price: number
+    } | null = null
 
     if (dto.decoratorPackageId && v.vendor_categories?.slug === 'decorators') {
       const { data: pkg } = await client
@@ -171,8 +198,10 @@ export class VendorInterestsService {
         const tier =
           tiers
             .sort((a: any, b: any) => b.min_guests - a.min_guests)
-            .find((t: any) => guestCount >= t.min_guests && (t.max_guests === null || guestCount <= t.max_guests)) ??
-          tiers.sort((a: any, b: any) => a.min_guests - b.min_guests)[0]
+            .find(
+              (t: any) =>
+                guestCount >= t.min_guests && (t.max_guests === null || guestCount <= t.max_guests),
+            ) ?? tiers.sort((a: any, b: any) => a.min_guests - b.min_guests)[0]
         if (tier) {
           computedOfferedPrice = tier.price
           decoratorSelection = {
@@ -235,7 +264,11 @@ export class VendorInterestsService {
 
     if (initialStatus === 'pending' && v.email) {
       const offeredPriceFormatted = dto.offeredPrice
-        ? new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(dto.offeredPrice)
+        ? new Intl.NumberFormat('en-NG', {
+            style: 'currency',
+            currency: 'NGN',
+            maximumFractionDigits: 0,
+          }).format(dto.offeredPrice)
         : null
 
       await this.email.sendVendorInquiry({
@@ -303,19 +336,28 @@ export class VendorInterestsService {
   }
 
   // User counters back after receiving a vendor counter-offer
-  async counterBack(eventId: string, interestId: string, userId: string, offeredPrice: number, isFinalOffer?: boolean) {
+  async counterBack(
+    eventId: string,
+    interestId: string,
+    userId: string,
+    offeredPrice: number,
+    isFinalOffer?: boolean,
+  ) {
     const client = this.supabase.getAdminClient()
 
     const { data: interest, error } = await client
       .from('vendor_interests')
-      .select('id, status, vendor_id, offered_price, counter_price, is_final_offer, events(title, city, event_date), vendors(name, email)')
+      .select(
+        'id, status, vendor_id, offered_price, counter_price, is_final_offer, events(title, city, event_date), vendors(name, email)',
+      )
       .eq('id', interestId)
       .eq('event_id', eventId)
       .eq('user_id', userId)
       .single()
 
     if (error || !interest) throw new NotFoundException('Interest not found')
-    if (interest.status !== 'quoted') throw new BadRequestException('No counter-offer to respond to.')
+    if (interest.status !== 'quoted')
+      throw new BadRequestException('No counter-offer to respond to.')
 
     // If the vendor marked their counter as final, user cannot counter — only accept or decline
     if ((interest as any).is_final_offer) {
@@ -341,7 +383,12 @@ export class VendorInterestsService {
     // Notify vendor of the counter-back
     const vendorEmail = (interest.vendors as any)?.email
     if (vendorEmail) {
-      const fmt = (v: number) => new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(v)
+      const fmt = (v: number) =>
+        new Intl.NumberFormat('en-NG', {
+          style: 'currency',
+          currency: 'NGN',
+          maximumFractionDigits: 0,
+        }).format(v)
       await this.email.sendVendorInquiry({
         to: vendorEmail,
         vendorName: (interest.vendors as any)?.name ?? 'Vendor',
@@ -418,14 +465,16 @@ export class VendorInterestsService {
 
     const { data, error } = await client
       .from('vendor_interests')
-      .select(`
+      .select(
+        `
         id, preference_rank, status, event_date, expires_at,
         vendor_response_at, vendor_notes, created_at,
         offered_price, counter_price, agreed_price, is_final_offer,
         discount_requested, discount_offered,
         events (id, title, city, guest_count_estimate),
         users (full_name, email, phone)
-      `)
+      `,
+      )
       .eq('vendor_id', vendor.id)
       .order('created_at', { ascending: false })
 
@@ -446,11 +495,13 @@ export class VendorInterestsService {
 
     const { data: interest, error: interestError } = await client
       .from('vendor_interests')
-      .select(`
+      .select(
+        `
         id, status, event_id, user_id, offered_price, is_final_offer,
         events (title, city, event_date),
         users (email, full_name)
-      `)
+      `,
+      )
       .eq('id', interestId)
       .eq('vendor_id', vendor.id)
       .single()
@@ -526,17 +577,20 @@ export class VendorInterestsService {
 
     const { data: interest, error: ie } = await client
       .from('vendor_interests')
-      .select(`
+      .select(
+        `
         id, status, vendor_id,
         events!inner (id, user_id),
         vendors (name, email)
-      `)
+      `,
+      )
       .eq('id', interestId)
       .eq('event_id', eventId)
       .single()
 
     if (ie || !interest) throw new NotFoundException('Booking not found')
-    if ((interest.events as any)?.user_id !== userId) throw new BadRequestException('Not authorised')
+    if ((interest.events as any)?.user_id !== userId)
+      throw new BadRequestException('Not authorised')
     if (!['available', 'committed', 'quoted'].includes(interest.status)) {
       throw new BadRequestException('This booking cannot be cancelled in its current state')
     }
@@ -566,7 +620,11 @@ export class VendorInterestsService {
 
     await client
       .from('vendor_interests')
-      .update({ status: 'cancelled', cancelled_at: new Date().toISOString(), cancelled_by: 'organiser' })
+      .update({
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
+        cancelled_by: 'organiser',
+      })
       .eq('id', interestId)
 
     const { data: cancellation, error: ce } = await client
@@ -591,15 +649,21 @@ export class VendorInterestsService {
     ]
 
     if (heldKobo > 0) {
-      events.push({ event_type: 'held_returned', message: `₦${heldNaira} returned to you (funds still held by Owambe).` })
+      events.push({
+        event_type: 'held_returned',
+        message: `₦${heldNaira} returned to you (funds still held by Owambe).`,
+      })
     }
     if (releasedKobo > 0) {
-      events.push({ event_type: 'forfeited', message: `₦${forfeitedNaira} already released to the vendor per their payment schedule and cannot be recovered.` })
+      events.push({
+        event_type: 'forfeited',
+        message: `₦${forfeitedNaira} already released to the vendor per their payment schedule and cannot be recovered.`,
+      })
     }
 
-    await client.from('cancellation_events').insert(
-      events.map((e) => ({ ...e, cancellation_id: cancellation.id }))
-    )
+    await client
+      .from('cancellation_events')
+      .insert(events.map((e) => ({ ...e, cancellation_id: cancellation.id })))
 
     // Notify vendor
     const vendorEmail = (interest.vendors as any)?.email
@@ -627,7 +691,8 @@ export class VendorInterestsService {
       .single()
 
     if (ie || !interest) throw new NotFoundException('Booking not found')
-    if ((interest.events as any)?.user_id !== userId) throw new BadRequestException('Not authorised')
+    if ((interest.events as any)?.user_id !== userId)
+      throw new BadRequestException('Not authorised')
 
     const { data: cancellation, error: ce } = await client
       .from('booking_cancellations')

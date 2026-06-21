@@ -68,7 +68,9 @@ export class GiftsService {
 
     const { data: items, error: itemsError } = await client
       .from('gift_list_items')
-      .select('id, title, description, price_estimate, store_url, is_purchased, purchased_by, sort_order')
+      .select(
+        'id, title, description, price_estimate, store_url, is_purchased, purchased_by, sort_order',
+      )
       .eq('gift_list_id', giftList.id)
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true })

@@ -1,4 +1,8 @@
-import { BadRequestException, InternalServerErrorException, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common'
 import { VendorPortalService } from './vendor-portal.service'
 import { makeSupabaseMock, q } from '../test/supabase.mock'
 import { EmailService } from '../email/email.service'
@@ -36,7 +40,9 @@ beforeEach(() => {
 describe('VendorPortalService', () => {
   describe('getProfile()', () => {
     it('throws NotFoundException when vendor not found', async () => {
-      const { service } = makeService({ vendors: q({ data: null, error: { message: 'not found' } }) })
+      const { service } = makeService({
+        vendors: q({ data: null, error: { message: 'not found' } }),
+      })
       await expect(service.getProfile('user-1')).rejects.toThrow(NotFoundException)
     })
 
@@ -49,7 +55,9 @@ describe('VendorPortalService', () => {
 
   describe('updateProfile()', () => {
     it('throws NotFoundException when vendor not found', async () => {
-      const { service } = makeService({ vendors: q({ data: null, error: { message: 'not found' } }) })
+      const { service } = makeService({
+        vendors: q({ data: null, error: { message: 'not found' } }),
+      })
       await expect(service.updateProfile('user-1', {})).rejects.toThrow(NotFoundException)
     })
 
@@ -61,8 +69,12 @@ describe('VendorPortalService', () => {
         return q()
       })
       const service = new VendorPortalService(supabase as any, mockEmail as any as EmailService)
-      await expect(service.updateProfile('user-1', { commitmentFeePercentage: 5 })).rejects.toThrow(BadRequestException)
-      await expect(service.updateProfile('user-1', { commitmentFeePercentage: 60 })).rejects.toThrow(BadRequestException)
+      await expect(service.updateProfile('user-1', { commitmentFeePercentage: 5 })).rejects.toThrow(
+        BadRequestException,
+      )
+      await expect(
+        service.updateProfile('user-1', { commitmentFeePercentage: 60 }),
+      ).rejects.toThrow(BadRequestException)
     })
 
     it('updates profile with allowed fields', async () => {
@@ -73,7 +85,10 @@ describe('VendorPortalService', () => {
         return q()
       })
       const service = new VendorPortalService(supabase as any, mockEmail as any as EmailService)
-      const result = await service.updateProfile('user-1', { phone: '0812345678', description: 'We cook' })
+      const result = await service.updateProfile('user-1', {
+        phone: '0812345678',
+        description: 'We cook',
+      })
       expect(result).toEqual(vendorRow)
     })
 
@@ -90,13 +105,17 @@ describe('VendorPortalService', () => {
         return q()
       })
       const service = new VendorPortalService(supabase as any, mockEmail as any as EmailService)
-      await expect(service.updateProfile('user-1', { phone: '0812345678' })).rejects.toThrow(InternalServerErrorException)
+      await expect(service.updateProfile('user-1', { phone: '0812345678' })).rejects.toThrow(
+        InternalServerErrorException,
+      )
     })
   })
 
   describe('getAvailability()', () => {
     it('throws NotFoundException when vendor not found', async () => {
-      const { service } = makeService({ vendors: q({ data: null, error: { message: 'not found' } }) })
+      const { service } = makeService({
+        vendors: q({ data: null, error: { message: 'not found' } }),
+      })
       await expect(service.getAvailability('user-1', 2099, 6)).rejects.toThrow(NotFoundException)
     })
 
@@ -117,17 +136,22 @@ describe('VendorPortalService', () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
         if (table === 'vendors') return q({ data: vendorRow, error: null })
-        if (table === 'vendor_availability') return q({ data: null, error: { message: 'DB error' } })
+        if (table === 'vendor_availability')
+          return q({ data: null, error: { message: 'DB error' } })
         return q()
       })
       const service = new VendorPortalService(supabase as any, mockEmail as any as EmailService)
-      await expect(service.getAvailability('user-1', 2099, 6)).rejects.toThrow(InternalServerErrorException)
+      await expect(service.getAvailability('user-1', 2099, 6)).rejects.toThrow(
+        InternalServerErrorException,
+      )
     })
   })
 
   describe('blockDate()', () => {
     it('throws NotFoundException when vendor not found', async () => {
-      const { service } = makeService({ vendors: q({ data: null, error: { message: 'not found' } }) })
+      const { service } = makeService({
+        vendors: q({ data: null, error: { message: 'not found' } }),
+      })
       await expect(service.blockDate('user-1', '2099-06-15')).rejects.toThrow(NotFoundException)
     })
 
@@ -135,7 +159,8 @@ describe('VendorPortalService', () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
         if (table === 'vendors') return q({ data: vendorRow, error: null })
-        if (table === 'vendor_availability') return q({ data: { id: 'av-1', status: 'booked' }, error: null })
+        if (table === 'vendor_availability')
+          return q({ data: { id: 'av-1', status: 'booked' }, error: null })
         return q()
       })
       const service = new VendorPortalService(supabase as any, mockEmail as any as EmailService)
@@ -167,7 +192,9 @@ describe('VendorPortalService', () => {
         return q()
       })
       const service = new VendorPortalService(supabase as any, mockEmail as any as EmailService)
-      await expect(service.blockDate('user-1', '2099-06-15')).rejects.toThrow(InternalServerErrorException)
+      await expect(service.blockDate('user-1', '2099-06-15')).rejects.toThrow(
+        InternalServerErrorException,
+      )
     })
   })
 
@@ -198,12 +225,16 @@ describe('VendorPortalService', () => {
 
   describe('getMenu()', () => {
     it('throws NotFoundException when vendor not found', async () => {
-      const { service } = makeService({ vendors: q({ data: null, error: { message: 'not found' } }) })
+      const { service } = makeService({
+        vendors: q({ data: null, error: { message: 'not found' } }),
+      })
       await expect(service.getMenu('user-1')).rejects.toThrow(NotFoundException)
     })
 
     it('returns menu items', async () => {
-      const menuItems = [{ id: 'item-1', name: 'Jollof Rice', category: 'Rice', caterer_menu_pricing_tiers: [] }]
+      const menuItems = [
+        { id: 'item-1', name: 'Jollof Rice', category: 'Rice', caterer_menu_pricing_tiers: [] },
+      ]
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
         if (table === 'vendors') return q({ data: vendorRow, error: null })
@@ -218,19 +249,28 @@ describe('VendorPortalService', () => {
 
   describe('addMenuItem()', () => {
     it('throws NotFoundException when vendor not found', async () => {
-      const { service } = makeService({ vendors: q({ data: null, error: { message: 'not found' } }) })
-      await expect(service.addMenuItem('user-1', { name: 'Rice', category: 'Mains', tiers: [] })).rejects.toThrow(NotFoundException)
+      const { service } = makeService({
+        vendors: q({ data: null, error: { message: 'not found' } }),
+      })
+      await expect(
+        service.addMenuItem('user-1', { name: 'Rice', category: 'Mains', tiers: [] }),
+      ).rejects.toThrow(NotFoundException)
     })
 
     it('creates menu item without tiers', async () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
         if (table === 'vendors') return q({ data: vendorRow, error: null })
-        if (table === 'caterer_menu_items') return q({ data: { id: 'item-1', name: 'Rice' }, error: null })
+        if (table === 'caterer_menu_items')
+          return q({ data: { id: 'item-1', name: 'Rice' }, error: null })
         return q()
       })
       const service = new VendorPortalService(supabase as any, mockEmail as any as EmailService)
-      const result = await service.addMenuItem('user-1', { name: 'Rice', category: 'Mains', tiers: [] })
+      const result = await service.addMenuItem('user-1', {
+        name: 'Rice',
+        category: 'Mains',
+        tiers: [],
+      })
       expect(result.id).toBe('item-1')
     })
 
@@ -238,12 +278,17 @@ describe('VendorPortalService', () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
         if (table === 'vendors') return q({ data: vendorRow, error: null })
-        if (table === 'caterer_menu_items') return q({ data: { id: 'item-1', name: 'Rice' }, error: null })
+        if (table === 'caterer_menu_items')
+          return q({ data: { id: 'item-1', name: 'Rice' }, error: null })
         if (table === 'caterer_menu_pricing_tiers') return q({ data: null, error: null })
         return q()
       })
       const service = new VendorPortalService(supabase as any, mockEmail as any as EmailService)
-      const result = await service.addMenuItem('user-1', { name: 'Rice', category: 'Mains', tiers: [{ minServings: 50, pricePerServing: 500 }] })
+      const result = await service.addMenuItem('user-1', {
+        name: 'Rice',
+        category: 'Mains',
+        tiers: [{ minServings: 50, pricePerServing: 500 }],
+      })
       expect(result.id).toBe('item-1')
     })
   })
@@ -264,7 +309,9 @@ describe('VendorPortalService', () => {
 
   describe('getDecoratorProfile()', () => {
     it('throws NotFoundException when vendor not found', async () => {
-      const { service } = makeService({ vendors: q({ data: null, error: { message: 'not found' } }) })
+      const { service } = makeService({
+        vendors: q({ data: null, error: { message: 'not found' } }),
+      })
       await expect(service.getDecoratorProfile('user-1')).rejects.toThrow(NotFoundException)
     })
 
@@ -272,7 +319,8 @@ describe('VendorPortalService', () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
         if (table === 'vendors') return q({ data: vendorRow, error: null })
-        if (table === 'decorator_styles') return q({ data: [{ id: 'sty-1', style: 'Modern', sort_order: 1 }], error: null })
+        if (table === 'decorator_styles')
+          return q({ data: [{ id: 'sty-1', style: 'Modern', sort_order: 1 }], error: null })
         if (table === 'decorator_packages') return q({ data: [], error: null })
         return q()
       })
@@ -285,7 +333,9 @@ describe('VendorPortalService', () => {
 
   describe('getPaymentStructure()', () => {
     it('throws NotFoundException when vendor not found', async () => {
-      const { service } = makeService({ vendors: q({ data: null, error: { message: 'not found' } }) })
+      const { service } = makeService({
+        vendors: q({ data: null, error: { message: 'not found' } }),
+      })
       await expect(service.getPaymentStructure('user-1')).rejects.toThrow(NotFoundException)
     })
 
@@ -326,35 +376,61 @@ describe('VendorPortalService', () => {
     }
 
     it('throws NotFoundException when vendor not found', async () => {
-      const { service } = makeService({ vendors: q({ data: null, error: { message: 'not found' } }) })
-      await expect(service.savePaymentStructure('user-1', validDto)).rejects.toThrow(NotFoundException)
+      const { service } = makeService({
+        vendors: q({ data: null, error: { message: 'not found' } }),
+      })
+      await expect(service.savePaymentStructure('user-1', validDto)).rejects.toThrow(
+        NotFoundException,
+      )
     })
 
     it('throws BadRequestException when percentages do not sum to 100', async () => {
       const { service } = makeService({ vendors: q({ data: vendorRow, error: null }) })
-      await expect(service.savePaymentStructure('user-1', { ...validDto, balancePct: 40 })).rejects.toThrow(BadRequestException)
+      await expect(
+        service.savePaymentStructure('user-1', { ...validDto, balancePct: 40 }),
+      ).rejects.toThrow(BadRequestException)
     })
 
     it('throws BadRequestException when balance is below 20%', async () => {
       const { service } = makeService({ vendors: q({ data: vendorRow, error: null }) })
       // 40 + 45 + 15 = 100, balance 15 < 20 → should throw
-      await expect(service.savePaymentStructure('user-1', { ...validDto, commitmentPct: 40, materialsPct: 45, balancePct: 15 })).rejects.toThrow(BadRequestException)
+      await expect(
+        service.savePaymentStructure('user-1', {
+          ...validDto,
+          commitmentPct: 40,
+          materialsPct: 45,
+          balancePct: 15,
+        }),
+      ).rejects.toThrow(BadRequestException)
     })
 
     it('throws BadRequestException when commitment is below 10%', async () => {
       const { service } = makeService({ vendors: q({ data: vendorRow, error: null }) })
-      await expect(service.savePaymentStructure('user-1', { ...validDto, commitmentPct: 5, materialsPct: 15, balancePct: 80 })).rejects.toThrow(BadRequestException)
+      await expect(
+        service.savePaymentStructure('user-1', {
+          ...validDto,
+          commitmentPct: 5,
+          materialsPct: 15,
+          balancePct: 80,
+        }),
+      ).rejects.toThrow(BadRequestException)
     })
 
     it('throws BadRequestException when commitment release days too low', async () => {
       const { service } = makeService({ vendors: q({ data: vendorRow, error: null }) })
-      await expect(service.savePaymentStructure('user-1', { ...validDto, commitmentReleaseDays: 3 })).rejects.toThrow(BadRequestException)
+      await expect(
+        service.savePaymentStructure('user-1', { ...validDto, commitmentReleaseDays: 3 }),
+      ).rejects.toThrow(BadRequestException)
     })
 
     it('throws BadRequestException when balance release hours out of range', async () => {
       const { service } = makeService({ vendors: q({ data: vendorRow, error: null }) })
-      await expect(service.savePaymentStructure('user-1', { ...validDto, balanceReleaseHours: 200 })).rejects.toThrow(BadRequestException)
-      await expect(service.savePaymentStructure('user-1', { ...validDto, balanceReleaseHours: 12 })).rejects.toThrow(BadRequestException)
+      await expect(
+        service.savePaymentStructure('user-1', { ...validDto, balanceReleaseHours: 200 }),
+      ).rejects.toThrow(BadRequestException)
+      await expect(
+        service.savePaymentStructure('user-1', { ...validDto, balanceReleaseHours: 12 }),
+      ).rejects.toThrow(BadRequestException)
     })
 
     it('saves and returns payment structure', async () => {
@@ -384,7 +460,11 @@ describe('VendorPortalService', () => {
     })
 
     it('activates payment structure', async () => {
-      const activeStructure = { id: 'ps-1', is_active: true, terms_agreed_at: '2099-01-01T00:00:00Z' }
+      const activeStructure = {
+        id: 'ps-1',
+        is_active: true,
+        terms_agreed_at: '2099-01-01T00:00:00Z',
+      }
       const supabase = makeSupabaseMock()
       let psCallCount = 0
       supabase._mockFrom.mockImplementation((table: string) => {
@@ -422,18 +502,23 @@ describe('VendorPortalService', () => {
         return q()
       })
       const service = new VendorPortalService(supabase as any, mockEmail as any as EmailService)
-      await expect(service.cancelBookingAsVendor('user-1', 'int-1')).rejects.toThrow(NotFoundException)
+      await expect(service.cancelBookingAsVendor('user-1', 'int-1')).rejects.toThrow(
+        NotFoundException,
+      )
     })
 
     it('throws BadRequestException when status is not available/committed', async () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
         if (table === 'vendors') return q({ data: vendorRow, error: null })
-        if (table === 'vendor_interests') return q({ data: { ...interestWithSchedule, status: 'pending' }, error: null })
+        if (table === 'vendor_interests')
+          return q({ data: { ...interestWithSchedule, status: 'pending' }, error: null })
         return q()
       })
       const service = new VendorPortalService(supabase as any, mockEmail as any as EmailService)
-      await expect(service.cancelBookingAsVendor('user-1', 'int-1')).rejects.toThrow(BadRequestException)
+      await expect(service.cancelBookingAsVendor('user-1', 'int-1')).rejects.toThrow(
+        BadRequestException,
+      )
     })
 
     it('cancels booking with no outstanding when nothing released', async () => {
@@ -441,8 +526,13 @@ describe('VendorPortalService', () => {
       supabase._mockFrom.mockImplementation((table: string) => {
         if (table === 'vendors') return q({ data: vendorRow, error: null })
         if (table === 'vendor_interests') return q({ data: interestWithSchedule, error: null })
-        if (table === 'interest_payment_schedule') return q({ data: [{ bucket: 'commitment', amount_kobo: 150000, status: 'scheduled' }], error: null })
-        if (table === 'booking_cancellations') return q({ data: { id: 'canc-1', status: 'no_outstanding' }, error: null })
+        if (table === 'interest_payment_schedule')
+          return q({
+            data: [{ bucket: 'commitment', amount_kobo: 150000, status: 'scheduled' }],
+            error: null,
+          })
+        if (table === 'booking_cancellations')
+          return q({ data: { id: 'canc-1', status: 'no_outstanding' }, error: null })
         if (table === 'cancellation_events') return q({ data: null, error: null })
         return q()
       })
@@ -459,14 +549,16 @@ describe('VendorPortalService', () => {
       supabase._mockFrom.mockImplementation((table: string) => {
         if (table === 'vendors') return q({ data: vendorRow, error: null })
         if (table === 'vendor_interests') return q({ data: interestWithSchedule, error: null })
-        if (table === 'interest_payment_schedule') return q({
-          data: [
-            { bucket: 'commitment', amount_kobo: 150000, status: 'released' },
-            { bucket: 'balance', amount_kobo: 250000, status: 'scheduled' },
-          ],
-          error: null,
-        })
-        if (table === 'booking_cancellations') return q({ data: { id: 'canc-1', status: 'pending' }, error: null })
+        if (table === 'interest_payment_schedule')
+          return q({
+            data: [
+              { bucket: 'commitment', amount_kobo: 150000, status: 'released' },
+              { bucket: 'balance', amount_kobo: 250000, status: 'scheduled' },
+            ],
+            error: null,
+          })
+        if (table === 'booking_cancellations')
+          return q({ data: { id: 'canc-1', status: 'pending' }, error: null })
         if (table === 'cancellation_events') return q({ data: null, error: null })
         return q()
       })
@@ -491,44 +583,59 @@ describe('VendorPortalService', () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
         if (table === 'vendors') return q({ data: vendorRow, error: null })
-        if (table === 'booking_cancellations') return q({ data: null, error: { message: 'not found' } })
+        if (table === 'booking_cancellations')
+          return q({ data: null, error: { message: 'not found' } })
         return q()
       })
       const service = new VendorPortalService(supabase as any, mockEmail as any as EmailService)
-      await expect(service.requestCancellationExtension('user-1', 'int-1')).rejects.toThrow(NotFoundException)
+      await expect(service.requestCancellationExtension('user-1', 'int-1')).rejects.toThrow(
+        NotFoundException,
+      )
     })
 
     it('throws BadRequestException when not authorised', async () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
         if (table === 'vendors') return q({ data: vendorRow, error: null })
-        if (table === 'booking_cancellations') return q({ data: { ...cancellationRow, vendor_interests: { vendor_id: 'other-ven' } }, error: null })
+        if (table === 'booking_cancellations')
+          return q({
+            data: { ...cancellationRow, vendor_interests: { vendor_id: 'other-ven' } },
+            error: null,
+          })
         return q()
       })
       const service = new VendorPortalService(supabase as any, mockEmail as any as EmailService)
-      await expect(service.requestCancellationExtension('user-1', 'int-1')).rejects.toThrow(BadRequestException)
+      await expect(service.requestCancellationExtension('user-1', 'int-1')).rejects.toThrow(
+        BadRequestException,
+      )
     })
 
     it('throws BadRequestException when extension already granted', async () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
         if (table === 'vendors') return q({ data: vendorRow, error: null })
-        if (table === 'booking_cancellations') return q({ data: { ...cancellationRow, extension_granted: true }, error: null })
+        if (table === 'booking_cancellations')
+          return q({ data: { ...cancellationRow, extension_granted: true }, error: null })
         return q()
       })
       const service = new VendorPortalService(supabase as any, mockEmail as any as EmailService)
-      await expect(service.requestCancellationExtension('user-1', 'int-1')).rejects.toThrow(BadRequestException)
+      await expect(service.requestCancellationExtension('user-1', 'int-1')).rejects.toThrow(
+        BadRequestException,
+      )
     })
 
     it('throws BadRequestException when status is not pending', async () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
         if (table === 'vendors') return q({ data: vendorRow, error: null })
-        if (table === 'booking_cancellations') return q({ data: { ...cancellationRow, status: 'completed' }, error: null })
+        if (table === 'booking_cancellations')
+          return q({ data: { ...cancellationRow, status: 'completed' }, error: null })
         return q()
       })
       const service = new VendorPortalService(supabase as any, mockEmail as any as EmailService)
-      await expect(service.requestCancellationExtension('user-1', 'int-1')).rejects.toThrow(BadRequestException)
+      await expect(service.requestCancellationExtension('user-1', 'int-1')).rejects.toThrow(
+        BadRequestException,
+      )
     })
 
     it('grants extension and notifies organiser', async () => {
@@ -537,14 +644,15 @@ describe('VendorPortalService', () => {
         if (table === 'vendors') return q({ data: vendorRow, error: null })
         if (table === 'booking_cancellations') return q({ data: cancellationRow, error: null })
         if (table === 'cancellation_events') return q({ data: null, error: null })
-        if (table === 'vendor_interests') return q({
-          data: {
-            vendors: { name: 'Vendor A' },
-            events: { title: 'Wedding' },
-            users: { email: 'organiser@test.com', full_name: 'Organiser' },
-          },
-          error: null,
-        })
+        if (table === 'vendor_interests')
+          return q({
+            data: {
+              vendors: { name: 'Vendor A' },
+              events: { title: 'Wedding' },
+              users: { email: 'organiser@test.com', full_name: 'Organiser' },
+            },
+            error: null,
+          })
         return q()
       })
       const service = new VendorPortalService(supabase as any, mockEmail as any as EmailService)

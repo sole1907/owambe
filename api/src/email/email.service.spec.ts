@@ -167,7 +167,12 @@ describe('EmailService', () => {
     it('sends inquiry email to vendor', async () => {
       await svc.sendVendorInquiry(params)
       const send = getSendCall(svc)
-      expect(send).toHaveBeenCalledWith(expect.objectContaining({ to: 'vendor@test.com', subject: expect.stringContaining('Wedding') }))
+      expect(send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'vendor@test.com',
+          subject: expect.stringContaining('Wedding'),
+        }),
+      )
     })
 
     it('includes offered price when provided', async () => {
@@ -372,15 +377,17 @@ describe('EmailService', () => {
     it('does not throw when resend is not configured', async () => {
       const config = { get: jest.fn().mockReturnValue(undefined) } as any as ConfigService
       const unconfiguredSvc = new EmailService(config)
-      await expect(unconfiguredSvc.sendVendorInquiry({
-        to: 'vendor@test.com',
-        vendorName: 'Chef',
-        eventTitle: 'Wedding',
-        eventDate: '2099-01-01',
-        eventCity: 'Lagos',
-        expiresAt: new Date().toISOString(),
-        offeredPrice: null,
-      })).resolves.not.toThrow()
+      await expect(
+        unconfiguredSvc.sendVendorInquiry({
+          to: 'vendor@test.com',
+          vendorName: 'Chef',
+          eventTitle: 'Wedding',
+          eventDate: '2099-01-01',
+          eventCity: 'Lagos',
+          expiresAt: new Date().toISOString(),
+          offeredPrice: null,
+        }),
+      ).resolves.not.toThrow()
     })
   })
 })

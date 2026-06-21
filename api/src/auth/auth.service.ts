@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common'
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { JwtService } from '@nestjs/jwt'
 import { SupabaseService } from '../supabase/supabase.service'
@@ -27,26 +32,30 @@ export class AuthService {
     })
 
     if (authError) {
-      if (authError.message === 'fetch failed') throw new InternalServerErrorException('Unable to reach auth service')
+      if (authError.message === 'fetch failed')
+        throw new InternalServerErrorException('Unable to reach auth service')
       if (authError.message.toLowerCase().includes('password')) {
-        throw new BadRequestException('Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character.')
+        throw new BadRequestException(
+          'Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character.',
+        )
       }
       throw new BadRequestException(authError.message)
     }
     if (!authData.user) throw new BadRequestException('Signup failed')
 
-    const { error: dbError } = await adminClient
-      .from('users')
-      .insert({
-        id: authData.user.id,
-        email: dto.email,
-        full_name: dto.fullName,
-        phone: dto.phone ?? null,
-        role: 'user',
-      })
+    const { error: dbError } = await adminClient.from('users').insert({
+      id: authData.user.id,
+      email: dto.email,
+      full_name: dto.fullName,
+      phone: dto.phone ?? null,
+      role: 'user',
+    })
 
     if (dbError) {
-      if (dbError.message.includes('users_email_key') || dbError.message.includes('unique constraint')) {
+      if (
+        dbError.message.includes('users_email_key') ||
+        dbError.message.includes('unique constraint')
+      ) {
         throw new BadRequestException('An account with this email already exists.')
       }
       throw new BadRequestException('Could not create account. Please try again.')
@@ -59,7 +68,10 @@ export class AuthService {
     const authClient = this.supabase.getAuthClient()
     const adminClient = this.supabase.getAdminClient()
 
-    const { data: { user }, error } = await authClient.auth.getUser(supabaseAccessToken)
+    const {
+      data: { user },
+      error,
+    } = await authClient.auth.getUser(supabaseAccessToken)
     if (error || !user) throw new UnauthorizedException('Invalid or expired token')
 
     const { data: dbUser, error: dbError } = await adminClient
@@ -85,7 +97,9 @@ export class AuthService {
     if (authError) {
       const msg = authError.message.toLowerCase()
       if (msg.includes('email not confirmed') || msg.includes('not confirmed')) {
-        throw new UnauthorizedException('Please verify your email before signing in. Check your inbox.')
+        throw new UnauthorizedException(
+          'Please verify your email before signing in. Check your inbox.',
+        )
       }
       throw new UnauthorizedException('Invalid email or password')
     }
@@ -96,7 +110,8 @@ export class AuthService {
       .eq('id', authData.user.id)
       .single()
 
-    if (dbError || !user) throw new UnauthorizedException('Could not load your account. Please contact support.')
+    if (dbError || !user)
+      throw new UnauthorizedException('Could not load your account. Please contact support.')
 
     return { user, token: this.issueToken(user) }
   }
@@ -119,13 +134,19 @@ export class AuthService {
   async resetPassword(accessToken: string, password: string) {
     const adminClient = this.supabase.getAdminClient()
 
-    const { data: { user }, error: userError } = await adminClient.auth.getUser(accessToken)
-    if (userError || !user) throw new BadRequestException('This reset link is invalid or has expired.')
+    const {
+      data: { user },
+      error: userError,
+    } = await adminClient.auth.getUser(accessToken)
+    if (userError || !user)
+      throw new BadRequestException('This reset link is invalid or has expired.')
 
     const { error } = await adminClient.auth.admin.updateUserById(user.id, { password })
     if (error) {
       if (error.message.toLowerCase().includes('password')) {
-        throw new BadRequestException('Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character.')
+        throw new BadRequestException(
+          'Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character.',
+        )
       }
       throw new BadRequestException('Could not reset password. Please try again.')
     }

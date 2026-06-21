@@ -1,4 +1,9 @@
-import { BadRequestException, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common'
+import {
+  BadRequestException,
+  InternalServerErrorException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PaymentsService } from './payments.service'
 import { makeSupabaseMock, q } from '../test/supabase.mock'
@@ -24,17 +29,37 @@ const interestRow = {
   vendor_id: 'ven-1',
   agreed_price: 500000,
   offered_price: 500000,
-  vendors: { id: 'ven-1', name: 'Vendor A', commitment_fee_percentage: 30, vendor_categories: { name: 'Catering' } },
-  events: { id: 'evt-1', title: 'Wedding', event_date: '2099-12-01', event_date_approximate: null, city: 'Lagos' },
+  vendors: {
+    id: 'ven-1',
+    name: 'Vendor A',
+    commitment_fee_percentage: 30,
+    vendor_categories: { name: 'Catering' },
+  },
+  events: {
+    id: 'evt-1',
+    title: 'Wedding',
+    event_date: '2099-12-01',
+    event_date_approximate: null,
+    city: 'Lagos',
+  },
 }
 
 const userRow = { email: 'user@test.com', full_name: 'Test User' }
 const vendorRow = { name: 'Vendor A', email: 'vendor@test.com' }
-const eventRow = { title: 'Wedding', event_date: '2099-12-01', event_date_approximate: null, city: 'Lagos' }
+const eventRow = {
+  title: 'Wedding',
+  event_date: '2099-12-01',
+  event_date_approximate: null,
+  city: 'Lagos',
+}
 
 function makeService(fromMap: Record<string, ReturnType<typeof q>> = {}) {
   const supabase = makeSupabaseMock(fromMap)
-  const service = new PaymentsService(supabase as any, mockEmail as any as EmailService, mockConfig as any as ConfigService)
+  const service = new PaymentsService(
+    supabase as any,
+    mockEmail as any as EmailService,
+    mockConfig as any as ConfigService,
+  )
   return { service, supabase }
 }
 
@@ -63,28 +88,60 @@ describe('PaymentsService', () => {
       const { service } = makeService({
         vendor_interests: q({ data: { ...interestRow, status: 'pending' }, error: null }),
       })
-      await expect(service.initializePayment('user-1', 'int-1')).rejects.toThrow(BadRequestException)
+      await expect(service.initializePayment('user-1', 'int-1')).rejects.toThrow(
+        BadRequestException,
+      )
     })
 
     it('throws BadRequestException when commitment fee already paid', async () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
         if (table === 'vendor_interests') return q({ data: interestRow, error: null })
-        if (table === 'commitment_payments') return q({ data: { status: 'success', paystack_reference: 'ref', paystack_access_code: 'code', amount_kobo: 150000, commitment_pct: 30 }, error: null })
+        if (table === 'commitment_payments')
+          return q({
+            data: {
+              status: 'success',
+              paystack_reference: 'ref',
+              paystack_access_code: 'code',
+              amount_kobo: 150000,
+              commitment_pct: 30,
+            },
+            error: null,
+          })
         return q()
       })
-      const service = new PaymentsService(supabase as any, mockEmail as any as EmailService, mockConfig as any as ConfigService)
-      await expect(service.initializePayment('user-1', 'int-1')).rejects.toThrow(BadRequestException)
+      const service = new PaymentsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
+      await expect(service.initializePayment('user-1', 'int-1')).rejects.toThrow(
+        BadRequestException,
+      )
     })
 
     it('returns existing pending payment without creating a new one', async () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
         if (table === 'vendor_interests') return q({ data: interestRow, error: null })
-        if (table === 'commitment_payments') return q({ data: { status: 'pending', paystack_reference: 'existing-ref', paystack_access_code: 'existing-code', amount_kobo: 150000, commitment_pct: 30 }, error: null })
+        if (table === 'commitment_payments')
+          return q({
+            data: {
+              status: 'pending',
+              paystack_reference: 'existing-ref',
+              paystack_access_code: 'existing-code',
+              amount_kobo: 150000,
+              commitment_pct: 30,
+            },
+            error: null,
+          })
         return q()
       })
-      const service = new PaymentsService(supabase as any, mockEmail as any as EmailService, mockConfig as any as ConfigService)
+      const service = new PaymentsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       const result = await service.initializePayment('user-1', 'int-1')
       expect(result.reference).toBe('existing-ref')
       expect(result.access_code).toBe('existing-code')
@@ -93,23 +150,39 @@ describe('PaymentsService', () => {
     it('throws BadRequestException when no agreed or offered price', async () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
-        if (table === 'vendor_interests') return q({ data: { ...interestRow, agreed_price: null, offered_price: null }, error: null })
-        if (table === 'commitment_payments') return q({ data: null, error: { message: 'not found' } })
+        if (table === 'vendor_interests')
+          return q({
+            data: { ...interestRow, agreed_price: null, offered_price: null },
+            error: null,
+          })
+        if (table === 'commitment_payments')
+          return q({ data: null, error: { message: 'not found' } })
         return q()
       })
-      const service = new PaymentsService(supabase as any, mockEmail as any as EmailService, mockConfig as any as ConfigService)
-      await expect(service.initializePayment('user-1', 'int-1')).rejects.toThrow(BadRequestException)
+      const service = new PaymentsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
+      await expect(service.initializePayment('user-1', 'int-1')).rejects.toThrow(
+        BadRequestException,
+      )
     })
 
     it('throws NotFoundException when user not found', async () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
         if (table === 'vendor_interests') return q({ data: interestRow, error: null })
-        if (table === 'commitment_payments') return q({ data: null, error: { message: 'not found' } })
+        if (table === 'commitment_payments')
+          return q({ data: null, error: { message: 'not found' } })
         if (table === 'users') return q({ data: null, error: null })
         return q()
       })
-      const service = new PaymentsService(supabase as any, mockEmail as any as EmailService, mockConfig as any as ConfigService)
+      const service = new PaymentsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       await expect(service.initializePayment('user-1', 'int-1')).rejects.toThrow(NotFoundException)
     })
 
@@ -117,12 +190,21 @@ describe('PaymentsService', () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
         if (table === 'vendor_interests') return q({ data: interestRow, error: null })
-        if (table === 'commitment_payments') return q({ data: null, error: { message: 'not found' } })
+        if (table === 'commitment_payments')
+          return q({ data: null, error: { message: 'not found' } })
         if (table === 'users') return q({ data: userRow, error: null })
         return q()
       })
-      mockFetch({ status: true, message: 'OK', data: { authorization_url: 'https://pay.co', access_code: 'ac-1', reference: 'ref-1' } })
-      const service = new PaymentsService(supabase as any, mockEmail as any as EmailService, mockConfig as any as ConfigService)
+      mockFetch({
+        status: true,
+        message: 'OK',
+        data: { authorization_url: 'https://pay.co', access_code: 'ac-1', reference: 'ref-1' },
+      })
+      const service = new PaymentsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       const result = await service.initializePayment('user-1', 'int-1')
       expect(result.reference).toBe('ref-1')
       expect(result.access_code).toBe('ac-1')
@@ -140,7 +222,10 @@ describe('PaymentsService', () => {
 
     it('returns alreadyConfirmed when status is success', async () => {
       const { service } = makeService({
-        commitment_payments: q({ data: { status: 'success', vendor_interests: { id: 'int-1' } }, error: null }),
+        commitment_payments: q({
+          data: { status: 'success', vendor_interests: { id: 'int-1' } },
+          error: null,
+        }),
       })
       const result = await service.verifyPayment('user-1', 'ref-1')
       expect(result).toEqual({ status: 'success', alreadyConfirmed: true })
@@ -151,8 +236,24 @@ describe('PaymentsService', () => {
       let callCount = 0
       supabase._mockFrom.mockImplementation((table: string) => {
         if (table === 'commitment_payments') {
-          if (callCount++ === 0) return q({ data: { status: 'pending', vendor_interests: { id: 'int-1' } }, error: null })
-          return q({ data: { id: 'pay-1', status: 'pending', interest_id: 'int-1', event_id: 'evt-1', vendor_id: 'ven-1', user_id: 'user-1', amount_kobo: 150000, commitment_pct: 30 }, error: null })
+          if (callCount++ === 0)
+            return q({
+              data: { status: 'pending', vendor_interests: { id: 'int-1' } },
+              error: null,
+            })
+          return q({
+            data: {
+              id: 'pay-1',
+              status: 'pending',
+              interest_id: 'int-1',
+              event_id: 'evt-1',
+              vendor_id: 'ven-1',
+              user_id: 'user-1',
+              amount_kobo: 150000,
+              commitment_pct: 30,
+            },
+            error: null,
+          })
         }
         if (table === 'vendors') return q({ data: vendorRow, error: null })
         if (table === 'events') return q({ data: eventRow, error: null })
@@ -161,8 +262,22 @@ describe('PaymentsService', () => {
         if (table === 'vendor_interests') return q({ data: null, error: null })
         return q()
       })
-      mockFetch({ status: true, message: 'OK', data: { status: 'success', reference: 'ref-1', amount: 150000, paid_at: '2099-01-01', metadata: {} } })
-      const service = new PaymentsService(supabase as any, mockEmail as any as EmailService, mockConfig as any as ConfigService)
+      mockFetch({
+        status: true,
+        message: 'OK',
+        data: {
+          status: 'success',
+          reference: 'ref-1',
+          amount: 150000,
+          paid_at: '2099-01-01',
+          metadata: {},
+        },
+      })
+      const service = new PaymentsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       const result = await service.verifyPayment('user-1', 'ref-1')
       expect(result.status).toBe('success')
     })
@@ -171,7 +286,11 @@ describe('PaymentsService', () => {
   describe('confirmPayment()', () => {
     it('throws BadRequestException when Paystack status is not success', async () => {
       const { service } = makeService()
-      mockFetch({ status: true, message: 'OK', data: { status: 'failed', reference: 'ref-1', amount: 0, paid_at: '', metadata: {} } })
+      mockFetch({
+        status: true,
+        message: 'OK',
+        data: { status: 'failed', reference: 'ref-1', amount: 0, paid_at: '', metadata: {} },
+      })
       await expect(service.confirmPayment('ref-1')).rejects.toThrow(BadRequestException)
     })
 
@@ -181,26 +300,80 @@ describe('PaymentsService', () => {
         if (table === 'commitment_payments') return q({ data: null, error: null })
         return q()
       })
-      mockFetch({ status: true, message: 'OK', data: { status: 'success', reference: 'ref-1', amount: 150000, paid_at: '2099-01-01', metadata: {} } })
-      const service = new PaymentsService(supabase as any, mockEmail as any as EmailService, mockConfig as any as ConfigService)
+      mockFetch({
+        status: true,
+        message: 'OK',
+        data: {
+          status: 'success',
+          reference: 'ref-1',
+          amount: 150000,
+          paid_at: '2099-01-01',
+          metadata: {},
+        },
+      })
+      const service = new PaymentsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       await expect(service.confirmPayment('ref-1')).rejects.toThrow(NotFoundException)
     })
 
     it('is idempotent when payment is already success', async () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
-        if (table === 'commitment_payments') return q({ data: { id: 'pay-1', status: 'success', interest_id: 'int-1', event_id: 'evt-1', vendor_id: 'ven-1', user_id: 'user-1', amount_kobo: 150000, commitment_pct: 30 }, error: null })
+        if (table === 'commitment_payments')
+          return q({
+            data: {
+              id: 'pay-1',
+              status: 'success',
+              interest_id: 'int-1',
+              event_id: 'evt-1',
+              vendor_id: 'ven-1',
+              user_id: 'user-1',
+              amount_kobo: 150000,
+              commitment_pct: 30,
+            },
+            error: null,
+          })
         return q()
       })
-      mockFetch({ status: true, message: 'OK', data: { status: 'success', reference: 'ref-1', amount: 150000, paid_at: '2099-01-01', metadata: {} } })
-      const service = new PaymentsService(supabase as any, mockEmail as any as EmailService, mockConfig as any as ConfigService)
+      mockFetch({
+        status: true,
+        message: 'OK',
+        data: {
+          status: 'success',
+          reference: 'ref-1',
+          amount: 150000,
+          paid_at: '2099-01-01',
+          metadata: {},
+        },
+      })
+      const service = new PaymentsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       await expect(service.confirmPayment('ref-1')).resolves.toBeUndefined()
     })
 
     it('confirms payment and sends emails', async () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
-        if (table === 'commitment_payments') return q({ data: { id: 'pay-1', status: 'pending', interest_id: 'int-1', event_id: 'evt-1', vendor_id: 'ven-1', user_id: 'user-1', amount_kobo: 150000, commitment_pct: 30 }, error: null })
+        if (table === 'commitment_payments')
+          return q({
+            data: {
+              id: 'pay-1',
+              status: 'pending',
+              interest_id: 'int-1',
+              event_id: 'evt-1',
+              vendor_id: 'ven-1',
+              user_id: 'user-1',
+              amount_kobo: 150000,
+              commitment_pct: 30,
+            },
+            error: null,
+          })
         if (table === 'vendors') return q({ data: vendorRow, error: null })
         if (table === 'events') return q({ data: eventRow, error: null })
         if (table === 'users') return q({ data: userRow, error: null })
@@ -208,8 +381,22 @@ describe('PaymentsService', () => {
         if (table === 'vendor_interests') return q({ data: null, error: null })
         return q()
       })
-      mockFetch({ status: true, message: 'OK', data: { status: 'success', reference: 'ref-1', amount: 150000, paid_at: '2099-01-01', metadata: {} } })
-      const service = new PaymentsService(supabase as any, mockEmail as any as EmailService, mockConfig as any as ConfigService)
+      mockFetch({
+        status: true,
+        message: 'OK',
+        data: {
+          status: 'success',
+          reference: 'ref-1',
+          amount: 150000,
+          paid_at: '2099-01-01',
+          metadata: {},
+        },
+      })
+      const service = new PaymentsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       await service.confirmPayment('ref-1')
       expect(mockEmail.sendCommitmentConfirmedToOrganiser).toHaveBeenCalled()
       expect(mockEmail.sendCommitmentConfirmedToVendor).toHaveBeenCalled()
@@ -219,8 +406,15 @@ describe('PaymentsService', () => {
   describe('handleWebhook()', () => {
     it('throws UnauthorizedException for invalid signature', async () => {
       const { service } = makeService()
-      const body = Buffer.from(JSON.stringify({ event: 'charge.success', data: { reference: 'ref-1', status: 'success' } }))
-      await expect(service.handleWebhook(body, 'bad-signature')).rejects.toThrow(UnauthorizedException)
+      const body = Buffer.from(
+        JSON.stringify({
+          event: 'charge.success',
+          data: { reference: 'ref-1', status: 'success' },
+        }),
+      )
+      await expect(service.handleWebhook(body, 'bad-signature')).rejects.toThrow(
+        UnauthorizedException,
+      )
     })
 
     it('does not throw for non-charge.success events', async () => {
@@ -235,7 +429,20 @@ describe('PaymentsService', () => {
     it('calls confirmPayment for charge.success event', async () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {
-        if (table === 'commitment_payments') return q({ data: { id: 'pay-1', status: 'pending', interest_id: 'int-1', event_id: 'evt-1', vendor_id: 'ven-1', user_id: 'user-1', amount_kobo: 150000, commitment_pct: 30 }, error: null })
+        if (table === 'commitment_payments')
+          return q({
+            data: {
+              id: 'pay-1',
+              status: 'pending',
+              interest_id: 'int-1',
+              event_id: 'evt-1',
+              vendor_id: 'ven-1',
+              user_id: 'user-1',
+              amount_kobo: 150000,
+              commitment_pct: 30,
+            },
+            error: null,
+          })
         if (table === 'vendors') return q({ data: vendorRow, error: null })
         if (table === 'events') return q({ data: eventRow, error: null })
         if (table === 'users') return q({ data: userRow, error: null })
@@ -243,12 +450,26 @@ describe('PaymentsService', () => {
         if (table === 'vendor_interests') return q({ data: null, error: null })
         return q()
       })
-      const service = new PaymentsService(supabase as any, mockEmail as any as EmailService, mockConfig as any as ConfigService)
+      const service = new PaymentsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       const bodyObj = { event: 'charge.success', data: { reference: 'ref-1', status: 'success' } }
       const body = Buffer.from(JSON.stringify(bodyObj))
       const crypto = require('crypto')
       const hash = crypto.createHmac('sha512', 'test-secret').update(body).digest('hex')
-      mockFetch({ status: true, message: 'OK', data: { status: 'success', reference: 'ref-1', amount: 150000, paid_at: '2099-01-01', metadata: {} } })
+      mockFetch({
+        status: true,
+        message: 'OK',
+        data: {
+          status: 'success',
+          reference: 'ref-1',
+          amount: 150000,
+          paid_at: '2099-01-01',
+          metadata: {},
+        },
+      })
       await expect(service.handleWebhook(body, hash)).resolves.toBeUndefined()
     })
   })
@@ -262,7 +483,16 @@ describe('PaymentsService', () => {
     })
 
     it('returns payment data', async () => {
-      const paymentData = { id: 'pay-1', status: 'success', amount_kobo: 150000, commitment_pct: 30, paid_at: '2099-01-01', created_at: '2099-01-01', vendors: { name: 'Vendor A' }, events: { title: 'Wedding', city: 'Lagos' } }
+      const paymentData = {
+        id: 'pay-1',
+        status: 'success',
+        amount_kobo: 150000,
+        commitment_pct: 30,
+        paid_at: '2099-01-01',
+        created_at: '2099-01-01',
+        vendors: { name: 'Vendor A' },
+        events: { title: 'Wedding', city: 'Lagos' },
+      }
       const { service } = makeService({
         commitment_payments: q({ data: paymentData, error: null }),
       })

@@ -138,10 +138,7 @@ export class GuestsService {
       token: randomUUID(),
     }))
 
-    const { data, error } = await client
-      .from('guest_invites')
-      .insert(records)
-      .select('id, token')
+    const { data, error } = await client.from('guest_invites').insert(records).select('id, token')
 
     if (error) throw new InternalServerErrorException(error.message)
 

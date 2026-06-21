@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Headers,
-  Param,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common'
+import { Body, Controller, Get, Headers, Param, Post, Req, UseGuards } from '@nestjs/common'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import { PaymentsService } from './payments.service'
@@ -20,7 +11,6 @@ export class PaymentsController {
 
   // Webhook — no auth guard, Paystack signs the payload
   @Post('webhook')
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async webhook(@Req() req: any, @Headers('x-paystack-signature') signature: string) {
     await this.payments.handleWebhook(req.rawBody as Buffer, signature)
     return { received: true }

@@ -32,7 +32,8 @@ export class GuestsController {
   @Post('events/:eventId/guests/import')
   importGuests(
     @Param('eventId') eventId: string,
-    @Body() body: { guests: { fullName: string; email: string; phone?: string; allocation?: number }[] },
+    @Body()
+    body: { guests: { fullName: string; email: string; phone?: string; allocation?: number }[] },
     @CurrentUser() user: any,
   ) {
     return this.guests.importGuests(eventId, body.guests, user.id)

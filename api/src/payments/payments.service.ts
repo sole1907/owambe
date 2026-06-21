@@ -66,7 +66,8 @@ export class PaymentsService {
     // Get interest + vendor + event + user details
     const { data: interest, error: interestError } = await client
       .from('vendor_interests')
-      .select(`
+      .select(
+        `
         id, status, event_id, vendor_id,
         agreed_price, offered_price,
         vendors (
@@ -74,7 +75,8 @@ export class PaymentsService {
           vendor_categories (name)
         ),
         events (id, title, event_date, event_date_approximate, city)
-      `)
+      `,
+      )
       .eq('id', interestId)
       .eq('user_id', userId)
       .single()
@@ -115,7 +117,9 @@ export class PaymentsService {
     // Use agreed_price (set after negotiation) or fall back to offered_price
     const agreedPrice = (interest as any).agreed_price ?? (interest as any).offered_price
     if (!agreedPrice) {
-      throw new BadRequestException('No agreed price on this booking. The vendor must respond with a price first.')
+      throw new BadRequestException(
+        'No agreed price on this booking. The vendor must respond with a price first.',
+      )
     }
 
     const commitmentPct = vendor.commitment_fee_percentage
@@ -240,7 +244,12 @@ export class PaymentsService {
       .eq('id', payment.interest_id)
 
     // Build payment release schedule from vendor's payment structure
-    await this.createPaymentSchedule(client, payment.interest_id, payment.vendor_id, Math.round(contractKobo))
+    await this.createPaymentSchedule(
+      client,
+      payment.interest_id,
+      payment.vendor_id,
+      Math.round(contractKobo),
+    )
 
     // Get vendor + event + user info for emails
     const { data: vendor } = await client
@@ -292,10 +301,7 @@ export class PaymentsService {
   // ── Paystack webhook ─────────────────────────────────────────────────────────
 
   async handleWebhook(rawBody: Buffer, signature: string) {
-    const hash = crypto
-      .createHmac('sha512', this.secretKey)
-      .update(rawBody)
-      .digest('hex')
+    const hash = crypto.createHmac('sha512', this.secretKey).update(rawBody).digest('hex')
 
     if (hash !== signature) {
       throw new UnauthorizedException('Invalid Paystack webhook signature')
@@ -358,7 +364,7 @@ export class PaymentsService {
     const rows = buckets.map((b) => ({
       interest_id: interestId,
       bucket: b.bucket,
-      amount_kobo: Math.round(totalKobo * b.pct / 100),
+      amount_kobo: Math.round((totalKobo * b.pct) / 100),
       pct_snapshot: b.pct,
       scheduled_at: b.scheduled_at.toISOString(),
       status: 'scheduled',
@@ -374,11 +380,13 @@ export class PaymentsService {
 
     const { data, error } = await client
       .from('commitment_payments')
-      .select(`
+      .select(
+        `
         id, status, amount_kobo, commitment_pct, paid_at, created_at,
         vendors (name),
         events (title, city)
-      `)
+      `,
+      )
       .eq('paystack_reference', reference)
       .single()
 

@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common'
 import { SupabaseService } from '../supabase/supabase.service'
 import { EmailService } from '../email/email.service'
 import { UpdateVendorProfileDto } from './dto/update-vendor-profile.dto'
@@ -38,27 +43,27 @@ export class VendorPortalService {
       dto.commitmentFeePercentage !== undefined &&
       (dto.commitmentFeePercentage < minPct || dto.commitmentFeePercentage > maxPct)
     ) {
-      throw new BadRequestException(
-        `Commitment fee must be between ${minPct}% and ${maxPct}%`,
-      )
+      throw new BadRequestException(`Commitment fee must be between ${minPct}% and ${maxPct}%`)
     }
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
-    if (dto.phone !== undefined)                updates.phone = dto.phone
-    if (dto.whatsapp !== undefined)             updates.whatsapp = dto.whatsapp
-    if (dto.email !== undefined)                updates.email = dto.email
-    if (dto.instagram !== undefined)            updates.instagram = dto.instagram
-    if (dto.website !== undefined)              updates.website = dto.website
-    if (dto.description !== undefined)          updates.description = dto.description
-    if (dto.servicefee !== undefined)           updates.service_fee = dto.servicefee
-    if (dto.perUnitCost !== undefined)          updates.per_unit_cost = dto.perUnitCost
-    if (dto.perUnitLabel !== undefined)         updates.per_unit_label = dto.perUnitLabel
-    if (dto.hasMaterialCosts !== undefined)     updates.has_material_costs = dto.hasMaterialCosts
-    if (dto.priceMin !== undefined)             updates.price_min = dto.priceMin
-    if (dto.priceMax !== undefined)             updates.price_max = dto.priceMax
-    if (dto.commitmentFeePercentage !== undefined) updates.commitment_fee_percentage = dto.commitmentFeePercentage
-    if (dto.balancePaymentMethods !== undefined)   updates.balance_payment_methods = dto.balancePaymentMethods
-    if (dto.cancellationPolicy !== undefined)      updates.cancellation_policy = dto.cancellationPolicy
+    if (dto.phone !== undefined) updates.phone = dto.phone
+    if (dto.whatsapp !== undefined) updates.whatsapp = dto.whatsapp
+    if (dto.email !== undefined) updates.email = dto.email
+    if (dto.instagram !== undefined) updates.instagram = dto.instagram
+    if (dto.website !== undefined) updates.website = dto.website
+    if (dto.description !== undefined) updates.description = dto.description
+    if (dto.servicefee !== undefined) updates.service_fee = dto.servicefee
+    if (dto.perUnitCost !== undefined) updates.per_unit_cost = dto.perUnitCost
+    if (dto.perUnitLabel !== undefined) updates.per_unit_label = dto.perUnitLabel
+    if (dto.hasMaterialCosts !== undefined) updates.has_material_costs = dto.hasMaterialCosts
+    if (dto.priceMin !== undefined) updates.price_min = dto.priceMin
+    if (dto.priceMax !== undefined) updates.price_max = dto.priceMax
+    if (dto.commitmentFeePercentage !== undefined)
+      updates.commitment_fee_percentage = dto.commitmentFeePercentage
+    if (dto.balancePaymentMethods !== undefined)
+      updates.balance_payment_methods = dto.balancePaymentMethods
+    if (dto.cancellationPolicy !== undefined) updates.cancellation_policy = dto.cancellationPolicy
 
     const { data, error } = await client
       .from('vendors')
@@ -102,7 +107,9 @@ export class VendorPortalService {
       .single()
 
     if (existing?.status === 'booked') {
-      throw new BadRequestException('This date is already confirmed as booked and cannot be manually blocked.')
+      throw new BadRequestException(
+        'This date is already confirmed as booked and cannot be manually blocked.',
+      )
     }
 
     const { error } = await client
@@ -159,15 +166,29 @@ export class VendorPortalService {
     return data ?? []
   }
 
-  async addMenuItem(userId: string, dto: { name: string; category: string; description?: string; tiers: { minServings: number; maxServings?: number; pricePerServing: number }[] }) {
+  async addMenuItem(
+    userId: string,
+    dto: {
+      name: string
+      category: string
+      description?: string
+      tiers: { minServings: number; maxServings?: number; pricePerServing: number }[]
+    },
+  ) {
     const client = this.supabase.getAdminClient()
     const vendor = await this.getVendorByUserId(userId)
     const { data: item, error } = await client
       .from('caterer_menu_items')
-      .insert({ vendor_id: vendor.id, name: dto.name, category: dto.category, description: dto.description ?? null })
+      .insert({
+        vendor_id: vendor.id,
+        name: dto.name,
+        category: dto.category,
+        description: dto.description ?? null,
+      })
       .select()
       .single()
-    if (error || !item) throw new InternalServerErrorException(error?.message ?? 'Failed to create item')
+    if (error || !item)
+      throw new InternalServerErrorException(error?.message ?? 'Failed to create item')
 
     if (dto.tiers?.length) {
       const tiers = dto.tiers.map((t) => ({
@@ -182,7 +203,16 @@ export class VendorPortalService {
     return item
   }
 
-  async updateMenuItem(userId: string, itemId: string, dto: { name?: string; category?: string; description?: string; tiers?: { minServings: number; maxServings?: number; pricePerServing: number }[] }) {
+  async updateMenuItem(
+    userId: string,
+    itemId: string,
+    dto: {
+      name?: string
+      category?: string
+      description?: string
+      tiers?: { minServings: number; maxServings?: number; pricePerServing: number }[]
+    },
+  ) {
     const client = this.supabase.getAdminClient()
     const vendor = await this.getVendorByUserId(userId)
 
@@ -192,7 +222,11 @@ export class VendorPortalService {
     if (dto.description !== undefined) updates.description = dto.description
 
     if (Object.keys(updates).length) {
-      const { error } = await client.from('caterer_menu_items').update(updates).eq('id', itemId).eq('vendor_id', vendor.id)
+      const { error } = await client
+        .from('caterer_menu_items')
+        .update(updates)
+        .eq('id', itemId)
+        .eq('vendor_id', vendor.id)
       if (error) throw new InternalServerErrorException(error.message)
     }
 
@@ -215,7 +249,11 @@ export class VendorPortalService {
   async deleteMenuItem(userId: string, itemId: string) {
     const client = this.supabase.getAdminClient()
     const vendor = await this.getVendorByUserId(userId)
-    const { error } = await client.from('caterer_menu_items').update({ is_active: false }).eq('id', itemId).eq('vendor_id', vendor.id)
+    const { error } = await client
+      .from('caterer_menu_items')
+      .update({ is_active: false })
+      .eq('id', itemId)
+      .eq('vendor_id', vendor.id)
     if (error) throw new InternalServerErrorException(error.message)
     return { id: itemId }
   }
@@ -235,7 +273,9 @@ export class VendorPortalService {
         .order('sort_order'),
       client
         .from('decorator_packages')
-        .select('id, name, description, includes, sort_order, decorator_package_guest_tiers (id, min_guests, max_guests, price)')
+        .select(
+          'id, name, description, includes, sort_order, decorator_package_guest_tiers (id, min_guests, max_guests, price)',
+        )
         .eq('vendor_id', vendor.id)
         .eq('is_active', true)
         .order('sort_order'),
@@ -275,7 +315,12 @@ export class VendorPortalService {
 
   async addDecoratorPackage(
     userId: string,
-    dto: { name: string; description?: string; includes?: string[]; tiers: { minGuests: number; maxGuests?: number; price: number }[] },
+    dto: {
+      name: string
+      description?: string
+      includes?: string[]
+      tiers: { minGuests: number; maxGuests?: number; price: number }[]
+    },
   ) {
     const client = this.supabase.getAdminClient()
     const vendor = await this.getVendorByUserId(userId)
@@ -290,7 +335,8 @@ export class VendorPortalService {
       })
       .select()
       .single()
-    if (error || !pkg) throw new InternalServerErrorException(error?.message ?? 'Failed to create package')
+    if (error || !pkg)
+      throw new InternalServerErrorException(error?.message ?? 'Failed to create package')
 
     if (dto.tiers?.length) {
       const tiers = dto.tiers.map((t) => ({
@@ -308,7 +354,12 @@ export class VendorPortalService {
   async updateDecoratorPackage(
     userId: string,
     packageId: string,
-    dto: { name?: string; description?: string; includes?: string[]; tiers?: { minGuests: number; maxGuests?: number; price: number }[] },
+    dto: {
+      name?: string
+      description?: string
+      includes?: string[]
+      tiers?: { minGuests: number; maxGuests?: number; price: number }[]
+    },
   ) {
     const client = this.supabase.getAdminClient()
     const vendor = await this.getVendorByUserId(userId)
@@ -364,15 +415,13 @@ export class VendorPortalService {
     const ext = filename.split('.').pop()?.toLowerCase() ?? 'jpg'
     const path = `${vendor.id}/${Date.now()}.${ext}`
 
-    const { data, error } = await client.storage
-      .from('vendor-photos')
-      .createSignedUploadUrl(path)
+    const { data, error } = await client.storage.from('vendor-photos').createSignedUploadUrl(path)
 
     if (error) throw new InternalServerErrorException(error.message)
 
-    const { data: { publicUrl } } = client.storage
-      .from('vendor-photos')
-      .getPublicUrl(path)
+    const {
+      data: { publicUrl },
+    } = client.storage.from('vendor-photos').getPublicUrl(path)
 
     return { signedUrl: data.signedUrl, publicUrl }
   }
@@ -381,7 +430,7 @@ export class VendorPortalService {
     const client = this.supabase.getAdminClient()
     const vendor = await this.getVendorByUserId(userId)
 
-    const photos = [...((vendor as any).photos ?? []), url]
+    const photos = [...(vendor.photos ?? []), url]
     const { error } = await client.from('vendors').update({ photos }).eq('id', vendor.id)
     if (error) throw new InternalServerErrorException(error.message)
     return { photos }
@@ -391,7 +440,7 @@ export class VendorPortalService {
     const client = this.supabase.getAdminClient()
     const vendor = await this.getVendorByUserId(userId)
 
-    const photos = ((vendor as any).photos ?? []).filter((p: string) => p !== url)
+    const photos = (vendor.photos ?? []).filter((p: string) => p !== url)
     const { error } = await client.from('vendors').update({ photos }).eq('id', vendor.id)
     if (error) throw new InternalServerErrorException(error.message)
 
@@ -402,7 +451,9 @@ export class VendorPortalService {
       if (idx !== -1) {
         await client.storage.from('vendor-photos').remove([url.slice(idx + prefix.length)])
       }
-    } catch {}
+    } catch {
+      // best-effort — photo record is already removed from DB
+    }
 
     return { photos }
   }
@@ -438,8 +489,10 @@ export class VendorPortalService {
     if (total !== 100) throw new BadRequestException('Percentages must sum to 100')
     if (dto.balancePct < 20) throw new BadRequestException('Balance must be at least 20%')
     if (dto.commitmentPct < 10) throw new BadRequestException('Commitment fee must be at least 10%')
-    if (dto.commitmentReleaseDays < 7) throw new BadRequestException('Commitment release must be at least 7 days before event')
-    if (dto.materialsReleaseDays < 7) throw new BadRequestException('Materials release must be at least 7 days before event')
+    if (dto.commitmentReleaseDays < 7)
+      throw new BadRequestException('Commitment release must be at least 7 days before event')
+    if (dto.materialsReleaseDays < 7)
+      throw new BadRequestException('Materials release must be at least 7 days before event')
     if (dto.balanceReleaseHours < 24 || dto.balanceReleaseHours > 168) {
       throw new BadRequestException('Balance release must be between 24 and 168 hours after event')
     }
@@ -476,7 +529,8 @@ export class VendorPortalService {
       .eq('vendor_id', vendor.id)
       .single()
 
-    if (!existing) throw new BadRequestException('Set up your payment structure before agreeing to terms')
+    if (!existing)
+      throw new BadRequestException('Set up your payment structure before agreeing to terms')
 
     const { data, error } = await client
       .from('vendor_payment_structures')
@@ -502,11 +556,13 @@ export class VendorPortalService {
 
     const { data: interest, error: ie } = await client
       .from('vendor_interests')
-      .select(`
+      .select(
+        `
         id, status, event_id, offered_price, agreed_price, total_contract_kobo,
         events (id, title, event_date, user_id),
         users (email, full_name)
-      `)
+      `,
+      )
       .eq('id', interestId)
       .eq('vendor_id', vendor.id)
       .single()
@@ -545,7 +601,11 @@ export class VendorPortalService {
     // Mark interest as cancelled
     await client
       .from('vendor_interests')
-      .update({ status: 'cancelled', cancelled_at: new Date().toISOString(), cancelled_by: 'vendor' })
+      .update({
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
+        cancelled_by: 'vendor',
+      })
       .eq('id', interestId)
 
     // Create cancellation record
@@ -569,21 +629,33 @@ export class VendorPortalService {
     const heldNaira = Math.round(heldKobo / 100).toLocaleString()
     const outstandingNaira = Math.round(outstandingKobo / 100).toLocaleString()
 
-    events.push({ event_type: 'cancelled', message: `Vendor cancelled the booking.${reason ? ` Reason: ${reason}` : ''}` })
+    events.push({
+      event_type: 'cancelled',
+      message: `Vendor cancelled the booking.${reason ? ` Reason: ${reason}` : ''}`,
+    })
 
     if (heldKobo > 0) {
-      events.push({ event_type: 'held_returned', message: `₦${heldNaira} returned to you immediately (funds held by Owambe).` })
+      events.push({
+        event_type: 'held_returned',
+        message: `₦${heldNaira} returned to you immediately (funds held by Owambe).`,
+      })
     }
 
     if (outstandingKobo > 0) {
-      events.push({ event_type: 'repayment_demanded', message: `₦${outstandingNaira} outstanding — vendor has been notified and has 7 days to refund you. Deadline: ${new Date(repaymentDeadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}.` })
+      events.push({
+        event_type: 'repayment_demanded',
+        message: `₦${outstandingNaira} outstanding — vendor has been notified and has 7 days to refund you. Deadline: ${new Date(repaymentDeadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}.`,
+      })
     } else {
-      events.push({ event_type: 'resolved', message: 'No additional funds outstanding. Your full payment has been returned.' })
+      events.push({
+        event_type: 'resolved',
+        message: 'No additional funds outstanding. Your full payment has been returned.',
+      })
     }
 
-    await client.from('cancellation_events').insert(
-      events.map((e) => ({ ...e, cancellation_id: cancellation.id }))
-    )
+    await client
+      .from('cancellation_events')
+      .insert(events.map((e) => ({ ...e, cancellation_id: cancellation.id })))
 
     // Notify organiser
     const organiserEmail = (interest.users as any)?.email
@@ -624,17 +696,23 @@ export class VendorPortalService {
 
     const { data: cancellation, error } = await client
       .from('booking_cancellations')
-      .select('id, status, extension_granted, repayment_deadline, interest_id, vendor_interests!inner(vendor_id)')
+      .select(
+        'id, status, extension_granted, repayment_deadline, interest_id, vendor_interests!inner(vendor_id)',
+      )
       .eq('interest_id', interestId)
       .eq('cancelled_by', 'vendor')
       .single()
 
     if (error || !cancellation) throw new NotFoundException('Cancellation not found')
-    if ((cancellation.vendor_interests as any)?.vendor_id !== vendor.id) throw new BadRequestException('Not authorised')
+    if ((cancellation.vendor_interests as any)?.vendor_id !== vendor.id)
+      throw new BadRequestException('Not authorised')
     if (cancellation.extension_granted) throw new BadRequestException('Extension already granted')
-    if (cancellation.status !== 'pending') throw new BadRequestException('Extension can only be requested while repayment is pending')
+    if (cancellation.status !== 'pending')
+      throw new BadRequestException('Extension can only be requested while repayment is pending')
 
-    const newDeadline = new Date(new Date(cancellation.repayment_deadline).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    const newDeadline = new Date(
+      new Date(cancellation.repayment_deadline).getTime() + 7 * 24 * 60 * 60 * 1000,
+    ).toISOString()
 
     await client
       .from('booking_cancellations')

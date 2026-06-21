@@ -1,22 +1,27 @@
-import { Injectable, InternalServerErrorException, BadRequestException, NotFoundException } from '@nestjs/common'
+import {
+  Injectable,
+  InternalServerErrorException,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common'
 
 // Maps AI-generated budget category labels → vendor category slugs
 export const BUDGET_CATEGORY_TO_VENDOR_SLUG: Record<string, string | null> = {
-  'Venue': 'venues',
-  'Catering': 'caterers',
-  'Decoration': 'decorators',
-  'Photography': 'photographers',
-  'Videography': 'videographers',
+  Venue: 'venues',
+  Catering: 'caterers',
+  Decoration: 'decorators',
+  Photography: 'photographers',
+  Videography: 'videographers',
   'Photography / Videography': 'photographers',
   'DJ / Live Band': 'djs',
   'DJ / Entertainment': 'djs',
-  'Entertainment': 'djs',
-  'MC': 'mcs',
+  Entertainment: 'djs',
+  MC: 'mcs',
   'Makeup Artist': 'makeup-artists',
   'Event Coordinator': 'event-coordinators',
   'AV / Technical Equipment': null,
   'Branding & Materials': null,
-  'Miscellaneous': null,
+  Miscellaneous: null,
 }
 import { SupabaseService } from '../supabase/supabase.service'
 import { PlanGeneratorService } from './plan-generator/plan-generator.service'
@@ -200,7 +205,9 @@ export class EventsService {
       .update({
         ...(updates.title !== undefined && { title: updates.title }),
         ...(updates.eventDate !== undefined && { event_date: updates.eventDate || null }),
-        ...(updates.eventDateApproximate !== undefined && { event_date_approximate: updates.eventDateApproximate || null }),
+        ...(updates.eventDateApproximate !== undefined && {
+          event_date_approximate: updates.eventDateApproximate || null,
+        }),
         ...(updates.city !== undefined && { city: updates.city || null }),
         ...(updates.guestCount !== undefined && { guest_count_estimate: updates.guestCount }),
         ...(updates.budgetEstimate !== undefined && { budget_estimate: updates.budgetEstimate }),
@@ -212,7 +219,8 @@ export class EventsService {
     if (error) throw new InternalServerErrorException(error.message)
 
     // Recalculate checklist due dates when the date changes
-    const dateChanged = updates.eventDate !== undefined || updates.eventDateApproximate !== undefined
+    const dateChanged =
+      updates.eventDate !== undefined || updates.eventDateApproximate !== undefined
     if (dateChanged) {
       const eventDate = updates.eventDate
         ? new Date(updates.eventDate)
@@ -229,7 +237,10 @@ export class EventsService {
         today.setHours(0, 0, 0, 0)
         const todayStr = today.toISOString().split('T')[0]
 
-        for (const milestone of planData.milestones as { title: string; weeksBeforeEvent: number }[]) {
+        for (const milestone of planData.milestones as {
+          title: string
+          weeksBeforeEvent: number
+        }[]) {
           let dueDate: string | null = null
           if (eventDate) {
             const due = new Date(eventDate)
@@ -259,14 +270,12 @@ export class EventsService {
       .limit(1)
 
     if (committed && committed.length > 0) {
-      throw new BadRequestException('Cannot delete an event that has confirmed vendor bookings. Cancel those bookings first.')
+      throw new BadRequestException(
+        'Cannot delete an event that has confirmed vendor bookings. Cancel those bookings first.',
+      )
     }
 
-    const { error } = await client
-      .from('events')
-      .delete()
-      .eq('id', eventId)
-      .eq('user_id', userId)
+    const { error } = await client.from('events').delete().eq('id', eventId).eq('user_id', userId)
 
     if (error) throw new InternalServerErrorException(error.message)
 
@@ -289,7 +298,12 @@ export class EventsService {
     const client = this.supabase.getClient()
 
     const [{ data: event }, { data: plan }] = await Promise.all([
-      client.from('events').select('budget_estimate').eq('id', eventId).eq('user_id', userId).single(),
+      client
+        .from('events')
+        .select('budget_estimate')
+        .eq('id', eventId)
+        .eq('user_id', userId)
+        .single(),
       client.from('event_plans').select('budget_breakdown').eq('event_id', eventId).single(),
     ])
 
@@ -302,7 +316,9 @@ export class EventsService {
     const [{ data: interests }, { data: payments }] = await Promise.all([
       client
         .from('vendor_interests')
-        .select('id, status, vendor_id, preference_rank, offered_price, agreed_price, vendors(name, price_min, vendor_categories(slug))')
+        .select(
+          'id, status, vendor_id, preference_rank, offered_price, agreed_price, vendors(name, price_min, vendor_categories(slug))',
+        )
         .eq('event_id', eventId)
         .in('status', ['pending', 'available', 'quoted', 'committed']),
       client
@@ -314,11 +330,17 @@ export class EventsService {
 
     const committedFeeByVendor: Record<string, number> = {}
     for (const p of payments ?? []) {
-      committedFeeByVendor[p.vendor_id] = (committedFeeByVendor[p.vendor_id] ?? 0) + p.amount_kobo / 100
+      committedFeeByVendor[p.vendor_id] =
+        (committedFeeByVendor[p.vendor_id] ?? 0) + p.amount_kobo / 100
     }
 
     // Pick best interest per vendor category (committed > available > pending, then rank 1 > 2 > 3)
-    const STATUS_PRIORITY: Record<string, number> = { committed: 0, available: 1, quoted: 2, pending: 3 }
+    const STATUS_PRIORITY: Record<string, number> = {
+      committed: 0,
+      available: 1,
+      quoted: 2,
+      pending: 3,
+    }
     const bestBySlug: Record<string, any> = {}
     for (const interest of interests ?? []) {
       const slug = (interest as any).vendors?.vendor_categories?.slug
@@ -326,7 +348,11 @@ export class EventsService {
       const existing = bestBySlug[slug]
       const curP = STATUS_PRIORITY[interest.status] ?? 3
       const exP = existing ? (STATUS_PRIORITY[existing.status] ?? 3) : 99
-      if (!existing || curP < exP || (curP === exP && (interest as any).preference_rank < existing.preference_rank)) {
+      if (
+        !existing ||
+        curP < exP ||
+        (curP === exP && (interest as any).preference_rank < existing.preference_rank)
+      ) {
         bestBySlug[slug] = interest
       }
     }
@@ -337,10 +363,10 @@ export class EventsService {
     const enriched = breakdown.map((item) => {
       const slug = BUDGET_CATEGORY_TO_VENDOR_SLUG[item.category] ?? null
       const interest = slug ? bestBySlug[slug] : null
-      const vendor = interest ? (interest as any).vendors : null
+      const vendor = interest ? interest.vendors : null
       const committedFee = interest ? (committedFeeByVendor[interest.vendor_id] ?? 0) : 0
       const projectedCost = interest
-        ? ((interest as any).agreed_price ?? (interest as any).offered_price ?? vendor?.price_min ?? 0)
+        ? (interest.agreed_price ?? interest.offered_price ?? vendor?.price_min ?? 0)
         : 0
       totalCommittedFee += committedFee
       totalProjectedCost += projectedCost

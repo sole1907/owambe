@@ -47,12 +47,17 @@ export class PlanGeneratorService {
     const baseTemplates = CHECKLIST_TEMPLATES[eventType] ?? CHECKLIST_TEMPLATES['other']
     const budgetTemplate = BUDGET_TEMPLATES[eventType] ?? BUDGET_TEMPLATES['other']
 
-    const coordinatorWeeksBefore = eventType === 'wedding' ? 16 : eventType === 'corporate' ? 12 : 10
-    const coordinatorTask = dto.wantsCoordinator === true
-      ? { title: 'Hire event coordinator', weeksBeforeEvent: coordinatorWeeksBefore }
-      : dto.wantsCoordinator === false
-        ? { title: 'Designate a day-of point person from family or friends', weeksBeforeEvent: coordinatorWeeksBefore }
-        : null
+    const coordinatorWeeksBefore =
+      eventType === 'wedding' ? 16 : eventType === 'corporate' ? 12 : 10
+    const coordinatorTask =
+      dto.wantsCoordinator === true
+        ? { title: 'Hire event coordinator', weeksBeforeEvent: coordinatorWeeksBefore }
+        : dto.wantsCoordinator === false
+          ? {
+              title: 'Designate a day-of point person from family or friends',
+              weeksBeforeEvent: coordinatorWeeksBefore,
+            }
+          : null
 
     const templates = coordinatorTask
       ? [...baseTemplates, coordinatorTask].sort((a, b) => b.weeksBeforeEvent - a.weeksBeforeEvent)
@@ -78,7 +83,7 @@ export class PlanGeneratorService {
 
     // When user wants a coordinator, inject the line and reduce Miscellaneous to keep total at 100%
     const COORDINATOR_PCT = 5
-    let adjustedBudget = [...budgetTemplate]
+    const adjustedBudget = [...budgetTemplate]
     if (dto.wantsCoordinator === true) {
       const miscIdx = adjustedBudget.findIndex((a) => a.category === 'Miscellaneous')
       if (miscIdx !== -1) {

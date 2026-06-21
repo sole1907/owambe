@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, UseGuards } from '@nestjs/common'
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common'
 import { EventsService } from './events.service'
 import { VendorsService } from '../vendors/vendors.service'
 import { GeneratePlanDto } from './dto/generate-plan.dto'
@@ -31,7 +41,8 @@ export class EventsController {
   @Patch(':id')
   updateEvent(
     @Param('id') id: string,
-    @Body() body: {
+    @Body()
+    body: {
       title?: string
       eventDate?: string
       eventDateApproximate?: string
