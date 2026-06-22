@@ -41,6 +41,30 @@ export class PayoutsService {
     return json.data
   }
 
+  // ── Vendor earnings history ──────────────────────────────────────────────────
+
+  async getEarnings(userId: string) {
+    const vendorId = await this.getVendorId(userId)
+    const client = this.supabase.getAdminClient()
+
+    const { data, error } = await client
+      .from('interest_payment_schedule')
+      .select(
+        `
+        id, bucket, amount_kobo, scheduled_at, status,
+        vendor_interests!inner (
+          vendor_id,
+          events (title, event_date, event_date_approximate, city)
+        )
+      `,
+      )
+      .eq('vendor_interests.vendor_id', vendorId)
+      .order('scheduled_at', { ascending: false })
+
+    if (error) throw new InternalServerErrorException(error.message)
+    return data ?? []
+  }
+
   // ── Bank list ────────────────────────────────────────────────────────────────
 
   async getBanks() {
@@ -145,6 +169,9 @@ export class PayoutsService {
     }
 
     const client = this.supabase.getAdminClient()
+    const now = new Date()
+
+    // ── 1. Process items due now ──────────────────────────────────────────────
 
     const { data: dueItems, error } = await client
       .from('interest_payment_schedule')
@@ -159,22 +186,75 @@ export class PayoutsService {
       `,
       )
       .eq('status', 'scheduled')
-      .lte('scheduled_at', new Date().toISOString())
+      .lte('scheduled_at', now.toISOString())
 
     if (error) {
       this.logger.error('Failed to query due releases', error)
       return
     }
 
-    if (!dueItems?.length) return
+    if (dueItems?.length) {
+      this.logger.log(`Processing ${dueItems.length} due payout(s)`)
+      for (const item of dueItems as any[]) {
+        try {
+          await this.processScheduleItem(item)
+        } catch (err) {
+          this.logger.error(`Failed to process schedule item ${item.id}`, err)
+        }
+      }
+    }
 
-    this.logger.log(`Processing ${dueItems.length} due payout(s)`)
+    // ── 2. Send upcoming payment reminders (7-day and 3-day) ─────────────────
 
-    for (const item of dueItems as any[]) {
-      try {
-        await this.processScheduleItem(item)
-      } catch (err) {
-        this.logger.error(`Failed to process schedule item ${item.id}`, err)
+    await this.sendUpcomingReminders(client, now)
+  }
+
+  private async sendUpcomingReminders(
+    client: ReturnType<SupabaseService['getAdminClient']>,
+    now: Date,
+  ) {
+    const windows = [
+      { days: 7, lo: 6, hi: 7 },
+      { days: 3, lo: 2, hi: 3 },
+    ]
+
+    for (const { days, lo, hi } of windows) {
+      const loDate = new Date(now.getTime() + lo * 24 * 60 * 60 * 1000)
+      const hiDate = new Date(now.getTime() + hi * 24 * 60 * 60 * 1000)
+
+      const { data: items } = await client
+        .from('interest_payment_schedule')
+        .select(
+          `
+          id, bucket, amount_kobo, scheduled_at,
+          vendor_interests!inner (
+            vendors!inner (name, email),
+            events!inner (title)
+          )
+        `,
+        )
+        .eq('status', 'scheduled')
+        .gte('scheduled_at', loDate.toISOString())
+        .lt('scheduled_at', hiDate.toISOString())
+
+      if (!items?.length) continue
+
+      for (const item of items as any[]) {
+        try {
+          const vendor = item.vendor_interests.vendors
+          if (!vendor?.email) continue
+          await this.email.sendUpcomingPaymentReminder({
+            to: vendor.email,
+            vendorName: vendor.name,
+            bucket: item.bucket,
+            amountNaira: item.amount_kobo / 100,
+            eventTitle: item.vendor_interests.events.title,
+            daysUntil: days,
+            scheduledAt: item.scheduled_at,
+          })
+        } catch (err) {
+          this.logger.error(`Failed to send ${days}-day reminder for item ${item.id}`, err)
+        }
       }
     }
   }

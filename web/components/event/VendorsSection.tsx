@@ -28,6 +28,14 @@ type Vendor = {
   whatsapp: string | null
 }
 
+type ScheduleItem = {
+  id: string
+  bucket: 'commitment' | 'materials' | 'balance'
+  amount_kobo: number
+  scheduled_at: string
+  status: 'scheduled' | 'processing' | 'released'
+}
+
 type Interest = {
   id: string
   preference_rank: number // 1=A, 2=B, 3=C
@@ -44,6 +52,7 @@ type Interest = {
     vendor_categories: Category
     commitment_fee_percentage: number
   }
+  interest_payment_schedule?: ScheduleItem[]
 }
 
 type CancellationStatus = {
@@ -564,7 +573,7 @@ function ShortlistCard({
   const rank = RANK_LABEL[interest.preference_rank - 1]
   const [paying, setPaying] = useState(false)
   const [payError, setPayError] = useState('')
-  const [feeBreakdown, setFeeBreakdown] = useState<{ commitmentKobo: number; platformFeeKobo: number } | null>(null)
+  const [feeBreakdown, setFeeBreakdown] = useState<{ commitmentKobo: number; platformFeeKobo: number; payFull: boolean } | null>(null)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState('')
@@ -593,17 +602,23 @@ function ShortlistCard({
     ? Math.round((priceBasis * vendor.commitment_fee_percentage) / 100)
     : null
 
-  const handlePay = async () => {
+  const handlePay = async (payFull = false) => {
     if (!token) return
     setPaying(true)
     setPayError('')
     try {
       const res = await api.post<{
+        alreadyPaid?: boolean
         reference: string
         amount_kobo: number
         platform_fee_kobo: number
-      }>('/payments/initialize', { interestId: interest.id }, token)
-      setFeeBreakdown({ commitmentKobo: res.amount_kobo, platformFeeKobo: res.platform_fee_kobo })
+        pay_full?: boolean
+      }>('/payments/initialize', { interestId: interest.id, payFull }, token)
+      if (res.alreadyPaid) {
+        onCommitted(interest.id)
+        return
+      }
+      setFeeBreakdown({ commitmentKobo: res.amount_kobo, platformFeeKobo: res.platform_fee_kobo, payFull: !!res.pay_full })
       setPaying(false)
     } catch (err) {
       setPayError(err instanceof Error ? err.message : 'Payment failed.')
@@ -617,10 +632,17 @@ function ShortlistCard({
     setPayError('')
     try {
       const res = await api.post<{
+        alreadyPaid?: boolean
         reference: string
         amount_kobo: number
         platform_fee_kobo: number
-      }>('/payments/initialize', { interestId: interest.id }, token)
+      }>('/payments/initialize', { interestId: interest.id, payFull: feeBreakdown.payFull }, token)
+
+      if (res.alreadyPaid) {
+        setFeeBreakdown(null)
+        onCommitted(interest.id)
+        return
+      }
 
       if (!window.PaystackPop) {
         await new Promise<void>((resolve, reject) => {
@@ -769,10 +791,16 @@ function ShortlistCard({
           {/* Fee breakdown confirmation */}
           {feeBreakdown ? (
             <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 space-y-2">
-              <p className="text-xs font-semibold text-gray-700">Payment breakdown</p>
+              <p className="text-xs font-semibold text-gray-700">
+                {feeBreakdown.payFull ? 'Full payment breakdown' : 'Payment breakdown'}
+              </p>
               <div className="space-y-1 text-xs text-gray-600">
                 <div className="flex justify-between">
-                  <span>Commitment fee ({vendor.commitment_fee_percentage}%)</span>
+                  <span>
+                    {feeBreakdown.payFull
+                      ? 'Full contract amount (100%)'
+                      : `Commitment fee (${vendor.commitment_fee_percentage}%)`}
+                  </span>
                   <span className="font-medium">{formatNaira(feeBreakdown.commitmentKobo / 100)}</span>
                 </div>
                 <div className="flex justify-between">
@@ -784,6 +812,11 @@ function ShortlistCard({
                   <span>{formatNaira((feeBreakdown.commitmentKobo + feeBreakdown.platformFeeKobo) / 100)}</span>
                 </div>
               </div>
+              {feeBreakdown.payFull && (
+                <p className="text-xs text-blue-600">
+                  Full payment locks in your booking — payments to the vendor release per their schedule.
+                </p>
+              )}
               <div className="flex gap-2 pt-1">
                 <button
                   onClick={handleConfirmPay}
@@ -796,23 +829,34 @@ function ShortlistCard({
                   onClick={() => setFeeBreakdown(null)}
                   className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2 transition"
                 >
-                  Cancel
+                  Back
                 </button>
               </div>
             </div>
           ) : (
             <>
-              <button
-                onClick={handlePay}
-                disabled={paying}
-                className="text-xs bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition font-medium"
-              >
-                {paying
-                  ? 'Loading…'
-                  : commitmentFee
-                  ? `Pay commitment fee — ${formatNaira(commitmentFee)}`
-                  : 'Pay commitment fee'}
-              </button>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={() => handlePay(false)}
+                  disabled={paying}
+                  className="text-xs bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition font-medium"
+                >
+                  {paying
+                    ? 'Loading…'
+                    : commitmentFee
+                    ? `Pay commitment fee — ${formatNaira(commitmentFee)}`
+                    : 'Pay commitment fee'}
+                </button>
+                {priceBasis && (
+                  <button
+                    onClick={() => handlePay(true)}
+                    disabled={paying}
+                    className="text-xs border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition font-medium"
+                  >
+                    Pay in full — {formatNaira(priceBasis)}
+                  </button>
+                )}
+              </div>
               <p className="text-xs text-gray-400">
                 {vendor.commitment_fee_percentage}% of {priceBasis ? formatNaira(priceBasis) : 'agreed price'} · held until after your event
               </p>
@@ -820,6 +864,38 @@ function ShortlistCard({
           )}
         </div>
       )}
+
+      {/* Next due payment for committed interests */}
+      {interest.status === 'committed' && (() => {
+        const nextDue = interest.interest_payment_schedule
+          ?.filter(s => s.status !== 'released')
+          .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())[0]
+        if (!nextDue) return null
+        const dueDate = new Date(nextDue.scheduled_at)
+        const today = new Date()
+        const daysUntil = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+        const bucketLabel = nextDue.bucket === 'commitment' ? 'Commitment fee' : nextDue.bucket === 'materials' ? 'Materials fee' : 'Balance payment'
+        const isOverdue = daysUntil < 0
+        const cardStyle = isOverdue ? 'bg-red-50 border-red-200' : daysUntil <= 7 ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'
+        const textStyle = isOverdue ? 'text-red-700' : daysUntil <= 7 ? 'text-amber-700' : 'text-blue-700'
+        return (
+          <div className={`mt-2 ml-10 border rounded-lg px-3 py-2 ${cardStyle}`}>
+            <p className={`text-xs font-medium ${textStyle}`}>
+              Next release: {bucketLabel} · {formatNaira(nextDue.amount_kobo / 100)}
+              {nextDue.status === 'processing'
+                ? ' · In progress'
+                : isOverdue
+                ? ' · Overdue'
+                : daysUntil === 0
+                ? ' · Today'
+                : ` · ${daysUntil} day${daysUntil !== 1 ? 's' : ''}`}
+            </p>
+            <p className={`text-xs mt-0.5 ${textStyle} opacity-75`}>
+              {dueDate.toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </p>
+          </div>
+        )
+      })()}
 
       {['available', 'quoted', 'committed'].includes(interest.status) && !confirmCancel && (
         <div className="mt-2 pl-10">

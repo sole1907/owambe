@@ -126,6 +126,13 @@ export class VendorPortalController {
     return this.portal.deleteDecoratorPackage(user.id, id)
   }
 
+  // ── Earnings history ──────────────────────────────────────────────────────
+
+  @Get('earnings')
+  getEarnings(@CurrentUser() user: any) {
+    return this.payouts.getEarnings(user.id)
+  }
+
   // ── Bank account management ───────────────────────────────────────────────
 
   @Get('bank-account')

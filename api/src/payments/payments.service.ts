@@ -69,7 +69,7 @@ export class PaymentsService {
 
   // ── Initialize a commitment fee payment ──────────────────────────────────────
 
-  async initializePayment(userId: string, interestId: string) {
+  async initializePayment(userId: string, interestId: string, payFull = false) {
     const client = this.supabase.getAdminClient()
 
     // Get interest + vendor + event + user details
@@ -92,6 +92,11 @@ export class PaymentsService {
 
     if (interestError || !interest) throw new NotFoundException('Interest not found')
 
+    // Already committed — nothing left to do
+    if (interest.status === 'committed') {
+      return { alreadyPaid: true as const }
+    }
+
     if (interest.status !== 'available') {
       throw new BadRequestException(
         `Cannot pay for this vendor — their status is "${interest.status}". Only available vendors can be committed.`,
@@ -109,7 +114,9 @@ export class PaymentsService {
       .single()
 
     if (existingPayment?.status === 'success') {
-      throw new BadRequestException('Commitment fee has already been paid for this vendor.')
+      // Idempotently fix the interest status in case webhook was missed
+      await client.from('vendor_interests').update({ status: 'committed' }).eq('id', interestId)
+      return { alreadyPaid: true as const }
     }
 
     // Reuse pending payment if one exists (prevents duplicate Paystack txns)
@@ -134,7 +141,7 @@ export class PaymentsService {
       )
     }
 
-    const commitmentPct = vendor.commitment_fee_percentage
+    const commitmentPct = payFull ? 100 : (vendor.commitment_fee_percentage as number)
     const commitmentKobo = this.calculateCommitmentKobo(agreedPrice, commitmentPct)
     const platformFeeKobo = this.calculatePlatformFeeKobo(agreedPrice)
     const totalChargeKobo = commitmentKobo + platformFeeKobo
@@ -193,6 +200,7 @@ export class PaymentsService {
       amount_kobo: commitmentKobo,
       platform_fee_kobo: platformFeeKobo,
       commitment_pct: commitmentPct,
+      pay_full: payFull,
     }
   }
 
@@ -402,6 +410,25 @@ export class PaymentsService {
     }))
 
     await client.from('interest_payment_schedule').insert(rows)
+  }
+
+  // ── Organiser payment history ─────────────────────────────────────────────────
+
+  async getMyPayments(userId: string) {
+    const client = this.supabase.getAdminClient()
+    const { data, error } = await client
+      .from('commitment_payments')
+      .select(
+        `
+        id, status, amount_kobo, platform_fee_kobo, commitment_pct, paid_at, created_at,
+        vendors (name, vendor_categories (name)),
+        events (title, event_date, event_date_approximate, city)
+      `,
+      )
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+    if (error) throw new InternalServerErrorException(error.message)
+    return data ?? []
   }
 
   // ── Get payment status for a reference ───────────────────────────────────────

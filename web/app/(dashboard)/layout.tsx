@@ -8,6 +8,7 @@ import { useAuth } from '@/context/auth'
 const NAV_LINKS = [
   { href: '/dashboard', label: 'My Events' },
   { href: '/vendors', label: 'Vendors' },
+  { href: '/dashboard/payments', label: 'Payments' },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

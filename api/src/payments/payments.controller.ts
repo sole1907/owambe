@@ -26,7 +26,7 @@ export class PaymentsController {
   @Post('initialize')
   @UseGuards(JwtAuthGuard)
   initialize(@Body() dto: InitializePaymentDto, @CurrentUser() user: any) {
-    return this.payments.initializePayment(user.id, dto.interestId)
+    return this.payments.initializePayment(user.id, dto.interestId, dto.payFull)
   }
 
   // Verify payment after Paystack callback (requires auth)
@@ -34,5 +34,12 @@ export class PaymentsController {
   @UseGuards(JwtAuthGuard)
   verify(@Body() dto: VerifyPaymentDto, @CurrentUser() user: any) {
     return this.payments.verifyPayment(user.id, dto.reference)
+  }
+
+  // Organiser payment history
+  @Get('history')
+  @UseGuards(JwtAuthGuard)
+  getHistory(@CurrentUser() user: any) {
+    return this.payments.getMyPayments(user.id)
   }
 }

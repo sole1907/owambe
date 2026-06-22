@@ -37,7 +37,8 @@ export class VendorInterestsService {
         offered_price, counter_price, agreed_price, is_final_offer,
         vendors (id, name, slug, city, price_min, price_max, rating, photos,
           commitment_fee_percentage, email, phone, whatsapp,
-          vendor_categories (id, name, slug))
+          vendor_categories (id, name, slug)),
+        interest_payment_schedule (id, bucket, amount_kobo, scheduled_at, status)
       `,
       )
       .eq('event_id', eventId)

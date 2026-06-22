@@ -123,6 +123,16 @@ type PaymentReleasedParams = {
   eventTitle: string
 }
 
+type UpcomingPaymentReminderParams = {
+  to: string // vendor email
+  vendorName: string
+  bucket: string
+  amountNaira: number
+  eventTitle: string
+  daysUntil: number
+  scheduledAt: string
+}
+
 // ─── Shared base template ────────────────────────────────────────────────────
 
 function base(content: string, interceptNote?: string): string {
@@ -736,7 +746,64 @@ export class EmailService {
     await this.send(params.to, `Refund extension granted — ${params.vendorName}`, content)
   }
 
-  // ── 13. Payment released → notify vendor ─────────────────────────────────────
+  // ── 13. Upcoming payment reminder → notify vendor ────────────────────────────
+
+  async sendUpcomingPaymentReminder(params: UpcomingPaymentReminderParams) {
+    const bucketLabel =
+      params.bucket === 'commitment'
+        ? 'Commitment fee'
+        : params.bucket === 'materials'
+          ? 'Materials fee'
+          : 'Balance payment'
+
+    const releaseDate = new Date(params.scheduledAt).toLocaleDateString('en-NG', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    })
+
+    const urgency =
+      params.daysUntil <= 3
+        ? 'bg-amber-50;border:1px solid #fde68a'
+        : 'background:#f0fdf4;border:1px solid #bbf7d0'
+    const urgencyText = params.daysUntil <= 3 ? '#92400e' : '#166534'
+
+    const content = `
+      ${heading('Upcoming payment release')}
+      ${subtext(`Hi <strong style="color:#111;">${params.vendorName}</strong>, a payment is scheduled to be released to your account soon.`)}
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#f9fafb;border-radius:12px;border:1px solid #e5e7eb;margin-bottom:16px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 2px;font-size:11px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Event</p>
+          <p style="margin:0;font-size:16px;font-weight:700;color:#111;">${params.eventTitle}</p>
+        </td></tr>
+      </table>
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="${urgency};border-radius:12px;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 4px;font-size:14px;color:${urgencyText};font-weight:600;">${bucketLabel}</p>
+          <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111;">₦${params.amountNaira.toLocaleString('en-NG')}</p>
+          <p style="margin:0;font-size:13px;color:${urgencyText};">
+            Scheduled for release on <strong>${releaseDate}</strong>
+            ${params.daysUntil === 1 ? ' — that&apos;s tomorrow!' : ` — in ${params.daysUntil} days`}
+          </p>
+        </td></tr>
+      </table>
+
+      <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
+        Please ensure your bank account details are up to date in your vendor portal. Payments are processed automatically on the release date.
+      </p>
+    `
+    await this.send(
+      params.to,
+      `${bucketLabel} of ₦${params.amountNaira.toLocaleString('en-NG')} releasing in ${params.daysUntil} day${params.daysUntil !== 1 ? 's' : ''} — ${params.eventTitle}`,
+      content,
+    )
+  }
+
+  // ── 14. Payment released → notify vendor ─────────────────────────────────────
 
   async sendPaymentReleased(params: PaymentReleasedParams) {
     const bucketLabel =

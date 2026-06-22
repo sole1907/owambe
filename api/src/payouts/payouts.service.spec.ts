@@ -71,6 +71,42 @@ function mockFetch(response: object) {
 
 beforeEach(() => jest.clearAllMocks())
 
+// ── getEarnings ───────────────────────────────────────────────────────────────
+
+describe('getEarnings()', () => {
+  it('returns empty array when vendor has no schedule items', async () => {
+    const { service } = makeService({
+      vendors: q({ data: { id: 'ven-1' } }),
+      interest_payment_schedule: q({ data: [], error: null }),
+    })
+    const result = await service.getEarnings('user-1')
+    expect(result).toEqual([])
+  })
+
+  it('returns schedule items for vendor', async () => {
+    const scheduleRows = [
+      {
+        id: 's1',
+        bucket: 'commitment',
+        amount_kobo: 150000,
+        scheduled_at: '2099-06-01',
+        status: 'scheduled',
+        vendor_interests: {
+          vendor_id: 'ven-1',
+          events: { title: 'Wedding', event_date: '2099-12-01' },
+        },
+      },
+    ]
+    const { service } = makeService({
+      vendors: q({ data: { id: 'ven-1' } }),
+      interest_payment_schedule: q({ data: scheduleRows, error: null }),
+    })
+    const result = await service.getEarnings('user-1')
+    expect(result).toHaveLength(1)
+    expect(result[0].bucket).toBe('commitment')
+  })
+})
+
 // ── getBankAccount ────────────────────────────────────────────────────────────
 
 describe('getBankAccount()', () => {

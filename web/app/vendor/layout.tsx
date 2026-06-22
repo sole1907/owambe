@@ -9,7 +9,8 @@ import { api } from '@/lib/api'
 const BASE_NAV = [
   { href: '/vendor/dashboard', label: 'Dashboard' },
   { href: '/vendor/inquiries', label: 'Inquiries' },
-  { href: '/vendor/payments', label: 'Payments' },
+  { href: '/vendor/earnings', label: 'Earnings' },
+  { href: '/vendor/payments', label: 'Pay Structure' },
   { href: '/vendor/bank', label: 'Bank Account' },
   { href: '/vendor/profile', label: 'My Profile' },
   { href: '/vendor/availability', label: 'Availability' },
