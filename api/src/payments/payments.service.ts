@@ -60,10 +60,11 @@ export class PaymentsService {
     return Math.round((agreedPrice * commitmentPct) / 100) * 100
   }
 
-  private calculatePlatformFeeKobo(agreedPriceNaira: number): number {
-    const pct = this.config.get<number>('platformFeePct') ?? 5
-    const capNaira = this.config.get<number>('platformFeeCapNaira') ?? 50000
-    const feeNaira = Math.min((agreedPriceNaira * pct) / 100, capNaira)
+  private calculatePlatformFeeKobo(chargeAmountNaira: number, alreadyPaidFeeNaira = 0): number {
+    const pct = this.config.get<number>('platformFeePct') ?? 4
+    const capNaira = this.config.get<number>('platformFeeCapNaira') ?? 40000
+    const remaining = Math.max(0, capNaira - alreadyPaidFeeNaira)
+    const feeNaira = Math.min((chargeAmountNaira * pct) / 100, remaining)
     return Math.round(feeNaira) * 100
   }
 
@@ -143,7 +144,8 @@ export class PaymentsService {
 
     const commitmentPct = payFull ? 100 : (vendor.commitment_fee_percentage as number)
     const commitmentKobo = this.calculateCommitmentKobo(agreedPrice, commitmentPct)
-    const platformFeeKobo = this.calculatePlatformFeeKobo(agreedPrice)
+    // Platform fee is 4% of the amount being charged now (not the full contract)
+    const platformFeeKobo = this.calculatePlatformFeeKobo(commitmentKobo / 100)
     const totalChargeKobo = commitmentKobo + platformFeeKobo
 
     // Get user email

@@ -662,15 +662,17 @@ function ShortlistCard({
         email: user!.email,
         amount: res.amount_kobo + res.platform_fee_kobo,
         ref: res.reference,
-        callback: async (response: { reference: string }) => {
-          try {
-            await api.post('/payments/verify', { reference: response.reference }, token)
-          } catch {
-            // verification failure is non-fatal — webhook will confirm async
-          }
-          setFeeBreakdown(null)
-          onCommitted(interest.id)
-          setPaying(false)
+        // Must be a plain (non-async) function — Paystack v1 validates constructor === Function
+        callback: (response: { reference: string }) => {
+          api.post('/payments/verify', { reference: response.reference }, token)
+            .catch(() => {
+              // verification failure is non-fatal — webhook will confirm async
+            })
+            .finally(() => {
+              setFeeBreakdown(null)
+              onCommitted(interest.id)
+              setPaying(false)
+            })
         },
         onClose: () => {
           setPaying(false)

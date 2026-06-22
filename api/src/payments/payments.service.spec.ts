@@ -215,7 +215,9 @@ describe('PaymentsService', () => {
       const result = await service.initializePayment('user-1', 'int-1')
       expect(result.reference).toBe('ref-1')
       expect(result.access_code).toBe('ac-1')
-      expect(result.amount_kobo).toBe(15000000) // 500000 * 30% * 100
+      expect(result.amount_kobo).toBe(15000000) // 500000 * 30% * 100 kobo
+      // Platform fee: 4% of commitment amount (₦150k) = ₦6k = 600,000 kobo
+      expect(result.platform_fee_kobo).toBe(600000)
     })
 
     it('charges full contract when payFull is true', async () => {
@@ -239,7 +241,9 @@ describe('PaymentsService', () => {
       )
       const result = await service.initializePayment('user-1', 'int-1', true)
       expect(result.commitment_pct).toBe(100)
-      expect(result.amount_kobo).toBe(50000000) // 500000 * 100% * 100
+      expect(result.amount_kobo).toBe(50000000) // 500000 * 100% * 100 kobo
+      // Platform fee: 4% of ₦500k = ₦20k (well under ₦40k cap) = 2,000,000 kobo
+      expect(result.platform_fee_kobo).toBe(2000000)
       expect(result.pay_full).toBe(true)
     })
   })
