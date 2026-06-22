@@ -280,7 +280,7 @@ export class PaymentsService {
     // Get vendor + event + user info for emails
     const { data: vendor } = await client
       .from('vendors')
-      .select('name, email')
+      .select('name, email, users (email)')
       .eq('id', payment.vendor_id)
       .single()
 
@@ -299,6 +299,10 @@ export class PaymentsService {
     const eventDate = event?.event_date ?? event?.event_date_approximate ?? 'TBC'
     const amountNaira = payment.amount_kobo / 100
 
+    // vendors.email is a business contact field that may be null.
+    // Fall back to the auth user's email via user_id → users.email.
+    const vendorEmail = (vendor as any)?.email || (vendor as any)?.users?.email || null
+
     // Send confirmation to organiser
     if (user?.email) {
       await this.email.sendCommitmentConfirmedToOrganiser({
@@ -312,10 +316,10 @@ export class PaymentsService {
     }
 
     // Send notification to vendor
-    if (vendor?.email) {
+    if (vendorEmail) {
       await this.email.sendCommitmentConfirmedToVendor({
-        to: vendor.email,
-        vendorName: vendor.name,
+        to: vendorEmail,
+        vendorName: vendor?.name ?? 'Vendor',
         organizerName: user?.full_name || 'An organiser',
         eventTitle: event?.title ?? 'an event',
         eventDate,
