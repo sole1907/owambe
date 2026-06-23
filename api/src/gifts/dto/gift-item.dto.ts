@@ -15,3 +15,28 @@ export class UpdateGiftItemDto {
   purchasedBy?: string
   sortOrder?: number
 }
+
+export class UpdateGiftSettingsDto {
+  bankAccountName?: string
+  bankAccountNumber?: string
+  bankName?: string
+  bankCode?: string
+  cashContributionEnabled?: boolean
+}
+
+export class ClaimItemDto {
+  claimerName: string
+}
+
+export class InitGiftPaymentDto {
+  giftAmountNaira: number
+  gifterName: string
+  gifterEmail?: string
+  message?: string
+}
+
+export class ReportDirectTransferDto {
+  gifterName: string
+  amountNaira: number
+  message?: string
+}

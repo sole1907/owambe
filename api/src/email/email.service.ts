@@ -133,6 +133,73 @@ type UpcomingPaymentReminderParams = {
   scheduledAt: string
 }
 
+type BookingWindowOpenParams = {
+  to: string // organiser email
+  organizerName: string
+  vendorName: string
+  eventTitle: string
+  agreedPriceNaira: number
+  commitmentFeeNaira: number
+  expiresInHours: number
+  eventPageUrl: string
+}
+
+type UpcomingOrgPaymentReminderParams = {
+  to: string // organiser email
+  organizerName: string
+  vendorName: string
+  eventTitle: string
+  bucket: 'materials' | 'balance'
+  amountNaira: number
+  daysUntil: number
+  scheduledAt: string
+}
+
+type CommitmentFeeExpiredParams = {
+  to: string // organiser email
+  organizerName: string
+  vendorName: string
+  eventTitle: string
+}
+
+type CollaboratorInviteParams = {
+  to: string
+  inviteeEmail: string
+  organizerName: string
+  eventTitle: string
+  eventDate: string | null
+  message?: string | null
+  acceptUrl: string
+}
+
+type ThankYouParams = {
+  to: string
+  recipientName: string
+  organizerName: string
+  eventTitle: string
+  customMessage: string
+  subject: string
+}
+
+type GiftReceivedParams = {
+  to: string // organiser email
+  organizerName: string
+  gifterName: string
+  amountNaira: number
+  message?: string | null
+  eventTitle: string
+}
+
+type DirectTransferReportedParams = {
+  to: string // organiser email
+  organizerName: string
+  gifterName: string
+  amountNaira: number
+  message?: string | null
+  eventTitle: string
+  confirmUrl: string
+}
+
 // ─── Shared base template ────────────────────────────────────────────────────
 
 function base(content: string, interceptNote?: string): string {
@@ -803,7 +870,122 @@ export class EmailService {
     )
   }
 
-  // ── 14. Payment released → notify vendor ─────────────────────────────────────
+  // ── 14. Booking window opened → notify organiser ────────────────────────────
+
+  async sendBookingWindowOpen(params: BookingWindowOpenParams) {
+    const deadline = new Date(Date.now() + params.expiresInHours * 3_600_000).toLocaleString(
+      'en-NG',
+      { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' },
+    )
+
+    const content = `
+      ${heading('Your booking is ready — pay now to lock it in')}
+      ${subtext(`Hi <strong style="color:#111;">${params.organizerName}</strong>, <strong>${params.vendorName}</strong> has accepted your booking for <strong>${params.eventTitle}</strong>.`)}
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#f0fdf4;border-radius:12px;border:1px solid #86efac;margin-bottom:16px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 4px;font-size:13px;color:#166534;font-weight:600;">Commitment fee due</p>
+          <p style="margin:0 0 2px;font-size:24px;font-weight:700;color:#15803d;">₦${params.commitmentFeeNaira.toLocaleString('en-NG')}</p>
+          <p style="margin:0;font-size:12px;color:#166534;">of ₦${params.agreedPriceNaira.toLocaleString('en-NG')} agreed price</p>
+        </td></tr>
+      </table>
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#fef3c7;border-radius:12px;border:1px solid #fde68a;margin-bottom:24px;">
+        <tr><td style="padding:12px 20px;">
+          <p style="margin:0;font-size:13px;color:#92400e;">
+            ⏱ Pay before <strong>${deadline}</strong> — the booking will be automatically released if unpaid.
+          </p>
+        </td></tr>
+      </table>
+
+      ${primaryBtn('Pay commitment fee', params.eventPageUrl)}
+    `
+    await this.send(
+      params.to,
+      `Action required: pay ₦${params.commitmentFeeNaira.toLocaleString('en-NG')} within ${params.expiresInHours}h to confirm ${params.vendorName}`,
+      content,
+    )
+  }
+
+  // ── 15. Upcoming payment reminder → notify organiser ────────────────────────
+
+  async sendUpcomingPaymentReminderToOrganiser(params: UpcomingOrgPaymentReminderParams) {
+    const bucketLabel = params.bucket === 'materials' ? 'Materials payment' : 'Balance payment'
+    const releaseDate = new Date(params.scheduledAt).toLocaleDateString('en-NG', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    })
+    const urgency =
+      params.daysUntil <= 3
+        ? 'background:#fffbeb;border:1px solid #fde68a'
+        : 'background:#eff6ff;border:1px solid #bfdbfe'
+    const urgencyText = params.daysUntil <= 3 ? '#92400e' : '#1e40af'
+
+    const content = `
+      ${heading('Upcoming payment milestone')}
+      ${subtext(`Hi <strong style="color:#111;">${params.organizerName}</strong>, a payment milestone for your booking is coming up soon.`)}
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#f9fafb;border-radius:12px;border:1px solid #e5e7eb;margin-bottom:16px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 2px;font-size:11px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Booking</p>
+          <p style="margin:0 0 2px;font-size:16px;font-weight:700;color:#111;">${params.eventTitle}</p>
+          <p style="margin:0;font-size:13px;color:#6b7280;">Vendor: <strong>${params.vendorName}</strong></p>
+        </td></tr>
+      </table>
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="${urgency};border-radius:12px;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 4px;font-size:14px;color:${urgencyText};font-weight:600;">${bucketLabel}</p>
+          <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111;">₦${params.amountNaira.toLocaleString('en-NG')}</p>
+          <p style="margin:0;font-size:13px;color:${urgencyText};">
+            Due on <strong>${releaseDate}</strong>
+            ${params.daysUntil === 1 ? ' — that&apos;s tomorrow!' : ` — in ${params.daysUntil} days`}
+          </p>
+        </td></tr>
+      </table>
+
+      <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
+        Log in to your Owambe dashboard to review your full payment schedule.
+      </p>
+    `
+    await this.send(
+      params.to,
+      `${bucketLabel} of ₦${params.amountNaira.toLocaleString('en-NG')} due in ${params.daysUntil} day${params.daysUntil !== 1 ? 's' : ''} — ${params.eventTitle}`,
+      content,
+    )
+  }
+
+  // ── 15. Commitment fee booking window expired → notify organiser ─────────────
+
+  async sendCommitmentFeeExpired(params: CommitmentFeeExpiredParams) {
+    const content = `
+      ${heading('Booking window closed')}
+      ${subtext(`Hi <strong style="color:#111;">${params.organizerName}</strong>, your reservation window for the following vendor has expired.`)}
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#fef2f2;border-radius:12px;border:1px solid #fecaca;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 4px;font-size:14px;color:#991b1b;font-weight:600;">${params.vendorName}</p>
+          <p style="margin:0;font-size:13px;color:#b91c1c;">Event: <strong>${params.eventTitle}</strong></p>
+          <p style="margin:8px 0 0;font-size:13px;color:#b91c1c;">
+            The 48-hour window to pay the commitment fee has passed. The vendor has been released and is now available to other organisers.
+          </p>
+        </td></tr>
+      </table>
+
+      <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
+        You can shortlist this vendor again from your event page if they are still available.
+      </p>
+    `
+    await this.send(params.to, `Booking window expired — ${params.vendorName}`, content)
+  }
+
+  // ── 16. Payment released → notify vendor ─────────────────────────────────────
 
   async sendPaymentReleased(params: PaymentReleasedParams) {
     const bucketLabel =
@@ -839,6 +1021,143 @@ export class EmailService {
     await this.send(
       params.to,
       `Payment of ₦${params.amountNaira.toLocaleString('en-NG')} released — ${params.eventTitle}`,
+      content,
+    )
+  }
+
+  // ── 17. Collaborator invite → coordinator ────────────────────────────────────
+
+  async sendCollaboratorInvite(params: CollaboratorInviteParams) {
+    const content = `
+      ${heading("You've been invited to co-coordinate an event")}
+      ${subtext(`<strong style="color:#111;">${params.organizerName}</strong> has invited you to help coordinate their event on Owambe.`)}
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#f9fafb;border-radius:12px;border:1px solid #e5e7eb;margin-bottom:16px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 2px;font-size:11px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Event</p>
+          <p style="margin:0 0 8px;font-size:18px;font-weight:700;color:#111;">${params.eventTitle}</p>
+          ${params.eventDate ? `<p style="margin:0;font-size:13px;color:#6b7280;">${params.eventDate}</p>` : ''}
+        </td></tr>
+      </table>
+
+      ${
+        params.message
+          ? `
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#fffbeb;border-radius:12px;border:1px solid #fcd34d;margin-bottom:24px;">
+        <tr><td style="padding:14px 18px;">
+          <p style="margin:0;font-size:13px;color:#92400e;font-style:italic;">"${params.message}"</p>
+          <p style="margin:6px 0 0;font-size:12px;color:#b45309;">— ${params.organizerName}</p>
+        </td></tr>
+      </table>`
+          : '<div style="margin-bottom:24px;"></div>'
+      }
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:20px;">
+        <tr><td align="center">
+          <a href="${params.acceptUrl}"
+             style="display:inline-block;padding:14px 32px;background:#111;color:#fff;font-size:15px;font-weight:600;border-radius:12px;text-decoration:none;">
+            Accept invitation →
+          </a>
+        </td></tr>
+      </table>
+
+      <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
+        As a coordinator you can view vendor bookings, manage the guest list and checklist,<br />
+        and access event logistics. Payments remain with the organiser.
+      </p>
+    `
+    await this.send(
+      params.to,
+      `You're invited to coordinate "${params.eventTitle}" on Owambe`,
+      content,
+    )
+  }
+
+  // ── 18. Personalised thank you → guest or gifter ─────────────────────────────
+
+  async sendThankYou(params: ThankYouParams) {
+    const content = `
+      ${heading(params.subject)}
+      ${subtext(`Dear <strong style="color:#111;">${params.recipientName}</strong>,`)}
+
+      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px 24px;margin-bottom:24px;white-space:pre-wrap;font-size:14px;color:#374151;line-height:1.7;">
+        ${params.customMessage.replace(/\n/g, '<br />')}
+      </div>
+
+      <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
+        With gratitude,<br />
+        <strong style="color:#111;">${params.organizerName}</strong><br />
+        <span style="font-size:12px;color:#9ca3af;">${params.eventTitle}</span>
+      </p>
+    `
+    await this.send(params.to, params.subject, content)
+  }
+
+  // ── 18. Cash gift received (platform payment) → notify organiser ─────────────
+
+  async sendGiftReceived(params: GiftReceivedParams) {
+    const content = `
+      ${heading('You received a gift!')}
+      ${subtext(`Hi <strong style="color:#111;">${params.organizerName}</strong>, a guest has sent you a cash gift for <strong>${params.eventTitle}</strong>.`)}
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#f0fdf4;border-radius:12px;border:1px solid #86efac;margin-bottom:16px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 2px;font-size:11px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">From</p>
+          <p style="margin:0 0 12px;font-size:16px;font-weight:700;color:#111;">${params.gifterName}</p>
+          <p style="margin:0 0 2px;font-size:11px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Amount</p>
+          <p style="margin:0;font-size:22px;font-weight:700;color:#15803d;">₦${params.amountNaira.toLocaleString('en-NG')}</p>
+          ${params.message ? `<p style="margin:12px 0 0;font-size:13px;color:#374151;font-style:italic;">"${params.message}"</p>` : ''}
+        </td></tr>
+      </table>
+
+      <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
+        The funds will be transferred to your registered bank account within 1–3 business days.
+      </p>
+    `
+    await this.send(
+      params.to,
+      `₦${params.amountNaira.toLocaleString('en-NG')} gift from ${params.gifterName} — ${params.eventTitle}`,
+      content,
+    )
+  }
+
+  // ── 18. Direct transfer self-reported → ask organiser to confirm ─────────────
+
+  async sendDirectTransferReported(params: DirectTransferReportedParams) {
+    const content = `
+      ${heading('Someone says they sent you a gift')}
+      ${subtext(`Hi <strong style="color:#111;">${params.organizerName}</strong>, a guest has reported a direct bank transfer for <strong>${params.eventTitle}</strong>. Please confirm once you see it in your account.`)}
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"
+             style="background:#fffbeb;border-radius:12px;border:1px solid #fcd34d;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <p style="margin:0 0 2px;font-size:11px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">From</p>
+          <p style="margin:0 0 12px;font-size:16px;font-weight:700;color:#111;">${params.gifterName}</p>
+          <p style="margin:0 0 2px;font-size:11px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Amount they reported</p>
+          <p style="margin:0;font-size:22px;font-weight:700;color:#92400e;">₦${params.amountNaira.toLocaleString('en-NG')}</p>
+          ${params.message ? `<p style="margin:12px 0 0;font-size:13px;color:#374151;font-style:italic;">"${params.message}"</p>` : ''}
+        </td></tr>
+      </table>
+
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:16px;">
+        <tr><td align="center">
+          <a href="${params.confirmUrl}"
+             style="display:inline-block;padding:12px 28px;background:#111;color:#fff;font-size:14px;font-weight:600;border-radius:10px;text-decoration:none;">
+            Confirm I received this →
+          </a>
+        </td></tr>
+      </table>
+
+      <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
+        Only confirm once you have verified the transfer in your bank account.
+      </p>
+    `
+    await this.send(
+      params.to,
+      `Gift reported by ${params.gifterName} — please confirm receipt`,
       content,
     )
   }

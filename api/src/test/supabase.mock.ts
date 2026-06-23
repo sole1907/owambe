@@ -34,7 +34,7 @@ export function q<T = any>(result: QueryResult<T> = { data: null, error: null })
     in: jest.fn().mockReturnThis(),
     // Terminal — resolves to result
     single: jest.fn().mockResolvedValue(result),
-    maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+    maybeSingle: jest.fn().mockResolvedValue(result),
     // Make the builder itself awaitable (queries without .single())
     then: (onFulfilled: any, onRejected?: any) =>
       Promise.resolve(result).then(onFulfilled, onRejected),

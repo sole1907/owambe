@@ -15,6 +15,7 @@ import { VendorInterestsModule } from './vendor-interests/vendor-interests.modul
 import { PaymentsModule } from './payments/payments.module'
 import { ReviewsModule } from './reviews/reviews.module'
 import { PayoutsModule } from './payouts/payouts.module'
+import { CollaboratorsModule } from './collaborators/collaborators.module'
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { PayoutsModule } from './payouts/payouts.module'
     PaymentsModule,
     ReviewsModule,
     PayoutsModule,
+    CollaboratorsModule,
   ],
 })
 export class AppModule {}

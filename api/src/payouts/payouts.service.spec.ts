@@ -14,6 +14,9 @@ function qm<T = any>(result: QueryResult<T> = { data: null, error: null }) {
 
 const mockEmail = {
   sendPaymentReleased: jest.fn().mockResolvedValue(undefined),
+  sendUpcomingPaymentReminder: jest.fn().mockResolvedValue(undefined),
+  sendUpcomingPaymentReminderToOrganiser: jest.fn().mockResolvedValue(undefined),
+  sendCommitmentFeeExpired: jest.fn().mockResolvedValue(undefined),
 }
 
 const mockConfig = {
@@ -104,6 +107,63 @@ describe('getEarnings()', () => {
     const result = await service.getEarnings('user-1')
     expect(result).toHaveLength(1)
     expect(result[0].bucket).toBe('commitment')
+  })
+})
+
+// ── expireStalePayments (via processDueReleases) ──────────────────────────────
+
+describe('expireStalePayments()', () => {
+  const stalePayment = {
+    id: 'pay-stale',
+    interest_id: 'int-stale',
+    user_id: 'user-1',
+    vendors: { name: 'Royal Feast' },
+    events: { title: 'Wedding' },
+    users: { email: 'org@test.com', full_name: 'Organiser' },
+  }
+
+  it('does nothing when no stale payments exist', async () => {
+    const { service } = makeService({
+      interest_payment_schedule: q({ data: [] }),
+      commitment_payments: q({ data: [] }),
+    })
+    await service.processDueReleases()
+    expect(mockEmail.sendCommitmentFeeExpired).not.toHaveBeenCalled()
+  })
+
+  it('expires stale payments and emails organiser', async () => {
+    const supabase = makeSupabaseMock()
+    supabase._mockFrom.mockImplementation((table: string) => {
+      if (table === 'interest_payment_schedule') return q({ data: [] })
+      if (table === 'commitment_payments') return q({ data: [stalePayment] })
+      return q()
+    })
+    const service = new PayoutsService(
+      supabase as any,
+      mockEmail as any as EmailService,
+      mockConfig as any as ConfigService,
+    )
+    await service.processDueReleases()
+    expect(mockEmail.sendCommitmentFeeExpired).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'org@test.com', vendorName: 'Royal Feast' }),
+    )
+  })
+
+  it('skips email when organiser has no email', async () => {
+    const supabase = makeSupabaseMock()
+    const paymentNoEmail = { ...stalePayment, users: { email: null, full_name: 'Organiser' } }
+    supabase._mockFrom.mockImplementation((table: string) => {
+      if (table === 'interest_payment_schedule') return q({ data: [] })
+      if (table === 'commitment_payments') return q({ data: [paymentNoEmail] })
+      return q()
+    })
+    const service = new PayoutsService(
+      supabase as any,
+      mockEmail as any as EmailService,
+      mockConfig as any as ConfigService,
+    )
+    await service.processDueReleases()
+    expect(mockEmail.sendCommitmentFeeExpired).not.toHaveBeenCalled()
   })
 })
 

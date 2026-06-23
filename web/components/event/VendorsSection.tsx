@@ -867,37 +867,72 @@ function ShortlistCard({
         </div>
       )}
 
-      {/* Next due payment for committed interests */}
-      {interest.status === 'committed' && (() => {
-        const nextDue = interest.interest_payment_schedule
-          ?.filter(s => s.status !== 'released')
-          .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())[0]
-        if (!nextDue) return null
-        const dueDate = new Date(nextDue.scheduled_at)
-        const today = new Date()
-        const daysUntil = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-        const bucketLabel = nextDue.bucket === 'commitment' ? 'Commitment fee' : nextDue.bucket === 'materials' ? 'Materials fee' : 'Balance payment'
-        const isOverdue = daysUntil < 0
-        const cardStyle = isOverdue ? 'bg-red-50 border-red-200' : daysUntil <= 7 ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'
-        const textStyle = isOverdue ? 'text-red-700' : daysUntil <= 7 ? 'text-amber-700' : 'text-blue-700'
-        return (
-          <div className={`mt-2 ml-10 border rounded-lg px-3 py-2 ${cardStyle}`}>
-            <p className={`text-xs font-medium ${textStyle}`}>
-              Next release: {bucketLabel} · {formatNaira(nextDue.amount_kobo / 100)}
-              {nextDue.status === 'processing'
-                ? ' · In progress'
-                : isOverdue
-                ? ' · Overdue'
-                : daysUntil === 0
-                ? ' · Today'
-                : ` · ${daysUntil} day${daysUntil !== 1 ? 's' : ''}`}
-            </p>
-            <p className={`text-xs mt-0.5 ${textStyle} opacity-75`}>
-              {dueDate.toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
-            </p>
-          </div>
-        )
-      })()}
+      {/* Payment schedule for committed interests */}
+      {interest.status === 'committed' && (
+        <div className="mt-2 ml-10">
+          {interest.interest_payment_schedule && interest.interest_payment_schedule.length > 0 ? (
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <p className="text-xs font-semibold text-gray-500 px-3 pt-2.5 pb-1 uppercase tracking-wider">
+                Payment schedule
+              </p>
+              <div className="divide-y divide-gray-100">
+                {interest.interest_payment_schedule
+                  .slice()
+                  .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+                  .map((item) => {
+                    const date = new Date(item.scheduled_at)
+                    const today = new Date()
+                    const daysUntil = Math.ceil((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+                    const bucketLabel =
+                      item.bucket === 'commitment'
+                        ? 'Commitment fee'
+                        : item.bucket === 'materials'
+                        ? 'Materials'
+                        : 'Balance'
+                    const isReleased = item.status === 'released'
+                    const isProcessing = item.status === 'processing'
+                    const isOverdue = !isReleased && !isProcessing && daysUntil < 0
+                    const isSoon = !isReleased && !isProcessing && daysUntil >= 0 && daysUntil <= 7
+
+                    const badge = isReleased
+                      ? { label: 'Paid out', style: 'bg-green-100 text-green-700' }
+                      : isProcessing
+                      ? { label: 'In progress', style: 'bg-blue-100 text-blue-700' }
+                      : isOverdue
+                      ? { label: 'Overdue', style: 'bg-red-100 text-red-700' }
+                      : isSoon
+                      ? { label: `${daysUntil}d`, style: 'bg-amber-100 text-amber-700' }
+                      : {
+                          label: date.toLocaleDateString('en-NG', { day: 'numeric', month: 'short' }),
+                          style: 'bg-gray-100 text-gray-500',
+                        }
+
+                    return (
+                      <div key={item.id} className="flex items-center justify-between px-3 py-2">
+                        <span className={`text-xs ${isReleased ? 'text-gray-400' : 'text-gray-700'}`}>
+                          {bucketLabel}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500">{formatNaira(item.amount_kobo / 100)}</span>
+                          <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${badge.style}`}>
+                            {badge.label}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+              </div>
+              {interest.interest_payment_schedule.some(s => s.status !== 'released') && (
+                <p className="text-xs text-gray-400 px-3 py-2 border-t border-gray-100">
+                  Unpaid amounts release to vendor on the dates above.
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-green-700 font-medium">Commitment fee paid ✓</p>
+          )}
+        </div>
+      )}
 
       {['available', 'quoted', 'committed'].includes(interest.status) && !confirmCancel && (
         <div className="mt-2 pl-10">

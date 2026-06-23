@@ -204,9 +204,59 @@ export class PayoutsService {
       }
     }
 
-    // ── 2. Send upcoming payment reminders (7-day and 3-day) ─────────────────
+    // ── 2. Expire stale pending commitment payments ───────────────────────────
+
+    await this.expireStalePayments(client, now)
+
+    // ── 3. Send upcoming payment reminders (7-day and 3-day) ─────────────────
 
     await this.sendUpcomingReminders(client, now)
+  }
+
+  private async expireStalePayments(
+    client: ReturnType<SupabaseService['getAdminClient']>,
+    now: Date,
+  ) {
+    const hours = this.config.get<number>('commitmentFeeExpiryHours') ?? 48
+    const cutoff = new Date(now.getTime() - hours * 3_600_000)
+
+    const { data: stale } = await client
+      .from('commitment_payments')
+      .select(
+        `id, interest_id, user_id,
+         vendors (name),
+         events (title),
+         users!user_id (email, full_name)`,
+      )
+      .eq('status', 'pending')
+      .lt('created_at', cutoff.toISOString())
+
+    if (!stale?.length) return
+
+    this.logger.log(`Expiring ${stale.length} stale commitment payment(s)`)
+    for (const payment of stale as any[]) {
+      try {
+        await Promise.all([
+          client.from('commitment_payments').update({ status: 'expired' }).eq('id', payment.id),
+          client
+            .from('vendor_interests')
+            .update({ status: 'expired' })
+            .eq('id', payment.interest_id),
+        ])
+
+        const organiserEmail = payment.users?.email
+        if (organiserEmail) {
+          await this.email.sendCommitmentFeeExpired({
+            to: organiserEmail,
+            organizerName: payment.users?.full_name || 'there',
+            vendorName: payment.vendors?.name ?? 'the vendor',
+            eventTitle: payment.events?.title ?? 'your event',
+          })
+        }
+      } catch (err) {
+        this.logger.error(`Failed to expire stale payment ${payment.id}`, err)
+      }
+    }
   }
 
   private async sendUpcomingReminders(
@@ -228,8 +278,10 @@ export class PayoutsService {
           `
           id, bucket, amount_kobo, scheduled_at,
           vendor_interests!inner (
-            vendors!inner (name, email),
-            events!inner (title)
+            user_id,
+            vendors!inner (name, email, users (email)),
+            events!inner (title),
+            users!user_id (email, full_name)
           )
         `,
         )
@@ -240,20 +292,48 @@ export class PayoutsService {
       if (!items?.length) continue
 
       for (const item of items as any[]) {
+        const vi = item.vendor_interests
         try {
-          const vendor = item.vendor_interests.vendors
-          if (!vendor?.email) continue
-          await this.email.sendUpcomingPaymentReminder({
-            to: vendor.email,
-            vendorName: vendor.name,
-            bucket: item.bucket,
-            amountNaira: item.amount_kobo / 100,
-            eventTitle: item.vendor_interests.events.title,
-            daysUntil: days,
-            scheduledAt: item.scheduled_at,
-          })
+          // Vendor reminder — all buckets
+          const vendor = vi.vendors
+          const vendorEmail = vendor?.email || vendor?.users?.email || null
+          if (vendorEmail) {
+            await this.email.sendUpcomingPaymentReminder({
+              to: vendorEmail,
+              vendorName: vendor.name,
+              bucket: item.bucket,
+              amountNaira: item.amount_kobo / 100,
+              eventTitle: vi.events.title,
+              daysUntil: days,
+              scheduledAt: item.scheduled_at,
+            })
+          }
         } catch (err) {
-          this.logger.error(`Failed to send ${days}-day reminder for item ${item.id}`, err)
+          this.logger.error(`Failed to send ${days}-day vendor reminder for item ${item.id}`, err)
+        }
+
+        // Organiser reminder — materials and balance only (commitment is already paid)
+        if (item.bucket === 'commitment') continue
+        try {
+          const organiser = vi['users!user_id'] ?? vi.users
+          const organiserEmail = organiser?.email
+          if (organiserEmail) {
+            await this.email.sendUpcomingPaymentReminderToOrganiser({
+              to: organiserEmail,
+              organizerName: organiser.full_name || 'there',
+              vendorName: vi.vendors?.name ?? 'your vendor',
+              eventTitle: vi.events.title,
+              bucket: item.bucket,
+              amountNaira: item.amount_kobo / 100,
+              daysUntil: days,
+              scheduledAt: item.scheduled_at,
+            })
+          }
+        } catch (err) {
+          this.logger.error(
+            `Failed to send ${days}-day organiser reminder for item ${item.id}`,
+            err,
+          )
         }
       }
     }

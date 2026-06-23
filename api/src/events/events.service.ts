@@ -3,7 +3,9 @@ import {
   InternalServerErrorException,
   BadRequestException,
   NotFoundException,
+  Logger,
 } from '@nestjs/common'
+import { EmailService } from '../email/email.service'
 
 // Maps AI-generated budget category labels → vendor category slugs
 export const BUDGET_CATEGORY_TO_VENDOR_SLUG: Record<string, string | null> = {
@@ -30,10 +32,13 @@ import { PostHogService } from '../analytics/posthog.service'
 
 @Injectable()
 export class EventsService {
+  private readonly logger = new Logger(EventsService.name)
+
   constructor(
     private supabase: SupabaseService,
     private planGenerator: PlanGeneratorService,
     private posthog: PostHogService,
+    private email: EmailService,
   ) {}
 
   async generatePlan(dto: GeneratePlanDto, userId: string) {
@@ -102,36 +107,69 @@ export class EventsService {
   }
 
   async getEvent(eventId: string, userId: string) {
-    const client = this.supabase.getClient()
+    const client = this.supabase.getAdminClient()
 
     const { data: event, error } = await client
       .from('events')
-      .select(
-        `
-        *,
-        event_plans (*),
-        checklist_items (*)
-      `,
-      )
+      .select(`*, event_plans (*), checklist_items (*)`)
       .eq('id', eventId)
-      .eq('user_id', userId)
       .single()
 
-    if (error) throw new InternalServerErrorException(error.message)
-    return event
+    if (error || !event) throw new NotFoundException('Event not found')
+
+    if (event.user_id === userId) {
+      return { ...event, myRole: 'owner' }
+    }
+
+    // Check coordinator access
+    const { data: collab } = await client
+      .from('event_collaborators')
+      .select('id')
+      .eq('event_id', eventId)
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    if (!collab) throw new NotFoundException('Event not found')
+
+    return { ...event, myRole: 'coordinator' }
   }
 
   async getUserEvents(userId: string) {
-    const client = this.supabase.getClient()
+    const client = this.supabase.getAdminClient()
 
-    const { data, error } = await client
-      .from('events')
-      .select('id, title, event_type, event_date, event_date_approximate, city, status, created_at')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
+    const [ownedResult, collabResult] = await Promise.all([
+      client
+        .from('events')
+        .select(
+          'id, title, event_type, event_date, event_date_approximate, city, status, created_at',
+        )
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false }),
+      client
+        .from('event_collaborators')
+        .select(
+          'event_id, events ( id, title, event_type, event_date, event_date_approximate, city, status, created_at )',
+        )
+        .eq('user_id', userId)
+        .eq('status', 'active'),
+    ])
 
-    if (error) throw new InternalServerErrorException(error.message)
-    return data
+    const owned = (ownedResult.data ?? []).map((e) => ({ ...e, myRole: 'owner' }))
+    const coordinating = (collabResult.data ?? [])
+      .map((c) => c.events as any)
+      .filter(Boolean)
+      .map((e: any) => ({ ...e, myRole: 'coordinator' }))
+
+    // Dedupe by id (in case owner is also somehow a collab)
+    const seen = new Set<string>()
+    const all = [...owned, ...coordinating].filter((e) => {
+      if (seen.has(e.id)) return false
+      seen.add(e.id)
+      return true
+    })
+
+    return all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   }
 
   async updateChecklistItem(
@@ -389,5 +427,152 @@ export class EventsService {
       total_projected_cost: totalProjectedCost,
       remaining: totalBudget ? totalBudget - totalProjectedCost : null,
     }
+  }
+
+  // ── Thank you messages ────────────────────────────────────────────────────────
+
+  async previewThankYouRecipients(
+    eventId: string,
+    userId: string,
+    target: 'attendees' | 'gifters' | 'all',
+  ) {
+    const client = this.supabase.getAdminClient()
+    await this.requireEventOwner(client, eventId, userId)
+
+    const { attendees, gifters } = await this.collectRecipients(client, eventId, target)
+    const all = this.dedupeRecipients([...attendees, ...gifters])
+
+    return {
+      attendeeCount: attendees.length,
+      gifterCount: gifters.length,
+      totalCount: all.length,
+    }
+  }
+
+  async sendThankYouMessages(
+    eventId: string,
+    userId: string,
+    dto: { target: 'attendees' | 'gifters' | 'all'; message: string; subject: string },
+  ) {
+    if (!dto.message?.trim()) throw new BadRequestException('Message is required')
+    if (!dto.subject?.trim()) throw new BadRequestException('Subject is required')
+
+    const client = this.supabase.getAdminClient()
+    const event = await this.requireEventOwner(client, eventId, userId)
+
+    const { data: organiserUser } = await client
+      .from('users')
+      .select('full_name')
+      .eq('id', userId)
+      .single()
+    const organizerName = (organiserUser as any)?.full_name || 'Your host'
+
+    const { attendees, gifters } = await this.collectRecipients(client, eventId, dto.target)
+    const recipients = this.dedupeRecipients([...attendees, ...gifters])
+
+    let sent = 0
+    let failed = 0
+
+    for (const r of recipients) {
+      try {
+        await this.email.sendThankYou({
+          to: r.email,
+          recipientName: r.name,
+          organizerName,
+          eventTitle: event.title,
+          customMessage: dto.message.trim(),
+          subject: dto.subject.trim(),
+        })
+        sent++
+      } catch (err) {
+        this.logger.error(`Failed to send thank-you to ${r.email}`, err)
+        failed++
+      }
+    }
+
+    return { sent, failed, total: recipients.length }
+  }
+
+  private async requireEventOwner(
+    client: ReturnType<SupabaseService['getAdminClient']>,
+    eventId: string,
+    userId: string,
+  ) {
+    const { data, error } = await client
+      .from('events')
+      .select('id, title, user_id')
+      .eq('id', eventId)
+      .eq('user_id', userId)
+      .single()
+    if (error || !data) throw new NotFoundException('Event not found')
+    return data as { id: string; title: string; user_id: string }
+  }
+
+  private async collectRecipients(
+    client: ReturnType<SupabaseService['getAdminClient']>,
+    eventId: string,
+    target: 'attendees' | 'gifters' | 'all',
+  ): Promise<{
+    attendees: { email: string; name: string }[]
+    gifters: { email: string; name: string }[]
+  }> {
+    const attendees: { email: string; name: string }[] = []
+    const gifters: { email: string; name: string }[] = []
+
+    if (target === 'attendees' || target === 'all') {
+      const { data: guestList } = await client
+        .from('guest_lists')
+        .select('id')
+        .eq('event_id', eventId)
+        .single()
+
+      if (guestList) {
+        const { data: invites } = await client
+          .from('guest_invites')
+          .select('full_name, email')
+          .eq('guest_list_id', guestList.id)
+          .neq('rsvp_status', 'declined')
+
+        for (const inv of invites ?? []) {
+          if (inv.email) attendees.push({ email: inv.email, name: inv.full_name })
+        }
+      }
+    }
+
+    if (target === 'gifters' || target === 'all') {
+      const { data: giftList } = await client
+        .from('gift_lists')
+        .select('id')
+        .eq('event_id', eventId)
+        .single()
+
+      if (giftList) {
+        // Paystack online payments with email
+        const { data: payments } = await client
+          .from('event_gift_payments')
+          .select('gifter_name, gifter_email')
+          .eq('gift_list_id', giftList.id)
+          .in('status', ['paid', 'transfer_initiated', 'transfer_complete'])
+          .not('gifter_email', 'is', null)
+
+        for (const p of payments ?? []) {
+          if (p.gifter_email) gifters.push({ email: p.gifter_email, name: p.gifter_name })
+        }
+      }
+    }
+
+    return { attendees, gifters }
+  }
+
+  private dedupeRecipients(
+    list: { email: string; name: string }[],
+  ): { email: string; name: string }[] {
+    const seen = new Set<string>()
+    return list.filter((r) => {
+      const key = r.email.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
   }
 }

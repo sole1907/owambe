@@ -10,6 +10,7 @@ import BudgetSection from '@/components/event/BudgetSection'
 import VendorsSection from '@/components/event/VendorsSection'
 import GuestListSection from '@/components/event/GuestListSection'
 import GiftListSection from '@/components/event/GiftListSection'
+import TeamSection from '@/components/event/TeamSection'
 import EditEventModal from '@/components/event/EditEventModal'
 
 type Event = {
@@ -22,6 +23,7 @@ type Event = {
   guest_count_estimate: number | null
   budget_estimate: number | null
   style_theme: string | null
+  myRole?: 'owner' | 'coordinator'
   event_plans: {
     budget_breakdown: { category: string; percentage: number; amount: number | null }[]
     milestones: { title: string; weeksBeforeEvent: number; dueDate: string | null }[]
@@ -52,7 +54,7 @@ export default function EventPage() {
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
   const tabParam = searchParams.get('tab')
-  const validTabs = ['checklist', 'budget', 'vendors', 'guests', 'gifts'] as const
+  const validTabs = ['checklist', 'budget', 'vendors', 'guests', 'gifts', 'team'] as const
   type TabType = typeof validTabs[number]
   const [activeTab, setActiveTab] = useState<TabType>(
     validTabs.includes(tabParam as TabType) ? (tabParam as TabType) : 'checklist',
@@ -121,6 +123,7 @@ export default function EventPage() {
     )
   }
 
+  const isOwner = !event.myRole || event.myRole === 'owner'
   const isApproxDate = !event.event_date && !!event.event_date_approximate
   const eventDateLabel = event.event_date
     ? new Date(event.event_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -157,12 +160,19 @@ export default function EventPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={() => setEditOpen(true)}
-              className="text-xs border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition"
-            >
-              Edit
-            </button>
+            {!isOwner && (
+              <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-lg font-medium">
+                Coordinator
+              </span>
+            )}
+            {isOwner && (
+              <button
+                onClick={() => setEditOpen(true)}
+                className="text-xs border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition"
+              >
+                Edit
+              </button>
+            )}
             <Link
               href={`/checkin?eventId=${event.id}`}
               target="_blank"
@@ -176,7 +186,7 @@ export default function EventPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 border-b border-gray-200 overflow-x-auto">
-        {(['checklist', 'budget', 'vendors', 'guests', 'gifts'] as const).map((tab) => (
+        {(['checklist', 'budget', 'vendors', 'guests', 'gifts', ...(isOwner ? ['team'] : [])] as TabType[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -186,7 +196,7 @@ export default function EventPage() {
                 : 'border-transparent text-gray-500 hover:text-black'
             }`}
           >
-            {tab === 'checklist' ? 'Checklist' : tab === 'budget' ? 'Budget' : tab === 'vendors' ? 'Vendors' : tab === 'guests' ? 'Guests' : 'Gifts'}
+            {tab === 'checklist' ? 'Checklist' : tab === 'budget' ? 'Budget' : tab === 'vendors' ? 'Vendors' : tab === 'guests' ? 'Guests' : tab === 'team' ? 'Team' : 'Gifts'}
             {tab === 'guests' && pendingRequestCount > 0 && (
               <span className="bg-black text-white text-xs font-medium px-1.5 py-0.5 rounded-full leading-none">
                 {pendingRequestCount}
@@ -226,42 +236,45 @@ export default function EventPage() {
       )}
       {activeTab === 'guests' && <GuestListSection eventId={event.id} />}
       {activeTab === 'gifts' && <GiftListSection eventId={event.id} />}
+      {activeTab === 'team' && isOwner && <TeamSection eventId={event.id} />}
 
-      {/* Danger zone */}
-      <div className="mt-12 pt-6 border-t border-gray-100">
-        {!deleteConfirm ? (
-          <button
-            onClick={() => setDeleteConfirm(true)}
-            className="text-sm text-red-500 hover:text-red-700 hover:underline transition"
-          >
-            Delete this event
-          </button>
-        ) : (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 max-w-md">
-            <p className="text-sm text-red-700 mb-3">
-              Are you sure you want to delete <span className="font-medium">{event.title}</span>? This will permanently remove the event and all associated data.
-            </p>
-            {deleteError && (
-              <p className="text-xs text-red-600 bg-red-100 rounded-lg px-3 py-2 mb-3">{deleteError}</p>
-            )}
-            <div className="flex gap-2">
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition"
-              >
-                {deleting ? 'Deleting...' : 'Yes, delete'}
-              </button>
-              <button
-                onClick={() => { setDeleteConfirm(false); setDeleteError('') }}
-                className="px-4 py-2 border border-gray-300 text-gray-700 bg-white text-sm font-medium rounded-lg hover:bg-gray-50 transition"
-              >
-                Cancel
-              </button>
+      {/* Danger zone — owners only */}
+      {isOwner && (
+        <div className="mt-12 pt-6 border-t border-gray-100">
+          {!deleteConfirm ? (
+            <button
+              onClick={() => setDeleteConfirm(true)}
+              className="text-sm text-red-500 hover:text-red-700 hover:underline transition"
+            >
+              Delete this event
+            </button>
+          ) : (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 max-w-md">
+              <p className="text-sm text-red-700 mb-3">
+                Are you sure you want to delete <span className="font-medium">{event.title}</span>? This will permanently remove the event and all associated data.
+              </p>
+              {deleteError && (
+                <p className="text-xs text-red-600 bg-red-100 rounded-lg px-3 py-2 mb-3">{deleteError}</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition"
+                >
+                  {deleting ? 'Deleting...' : 'Yes, delete'}
+                </button>
+                <button
+                  onClick={() => { setDeleteConfirm(false); setDeleteError('') }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 bg-white text-sm font-medium rounded-lg hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Edit modal */}
       {editOpen && (

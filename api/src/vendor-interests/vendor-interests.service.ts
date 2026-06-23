@@ -4,6 +4,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { SupabaseService } from '../supabase/supabase.service'
 import { EmailService } from '../email/email.service'
 import { CreateInterestDto, MenuSelectionDto } from './dto/create-interest.dto'
@@ -14,6 +15,7 @@ export class VendorInterestsService {
   constructor(
     private supabase: SupabaseService,
     private email: EmailService,
+    private config: ConfigService,
   ) {}
 
   async getInterests(eventId: string, userId: string) {
@@ -410,7 +412,12 @@ export class VendorInterestsService {
 
     const { data: interest, error } = await client
       .from('vendor_interests')
-      .select('id, status, counter_price')
+      .select(
+        `id, status, counter_price, event_id,
+         events (title),
+         users (email, full_name),
+         vendors (name, commitment_fee_percentage)`,
+      )
       .eq('id', interestId)
       .eq('event_id', eventId)
       .eq('user_id', userId)
@@ -428,6 +435,26 @@ export class VendorInterestsService {
       .single()
 
     if (updateError) throw new InternalServerErrorException(updateError.message)
+
+    const organiserEmail = (interest.users as any)?.email
+    if (organiserEmail) {
+      const vendor = interest.vendors as any
+      const price = interest.counter_price
+      const commitmentFee = Math.round((price * (vendor?.commitment_fee_percentage ?? 0)) / 100)
+      const expiryHours = this.config.get<number>('commitmentFeeExpiryHours') ?? 48
+      const appUrl = this.config.get<string>('appUrl') ?? 'http://localhost:3000'
+      await this.email.sendBookingWindowOpen({
+        to: organiserEmail,
+        organizerName: (interest.users as any)?.full_name ?? 'there',
+        vendorName: vendor?.name ?? 'your vendor',
+        eventTitle: (interest.events as any)?.title ?? 'your event',
+        agreedPriceNaira: price,
+        commitmentFeeNaira: commitmentFee,
+        expiresInHours: expiryHours,
+        eventPageUrl: `${appUrl}/dashboard/events/${interest.event_id}`,
+      })
+    }
+
     return data
   }
 
@@ -566,6 +593,24 @@ export class VendorInterestsService {
         vendorNotes: dto.notes,
         counterPrice: dto.counterPrice,
       })
+
+      // If vendor accepted (status is now available), remind organiser to pay commitment fee
+      if (newStatus === 'available') {
+        const price = agreedPrice ?? (interest as any).offered_price ?? 0
+        const commitmentFee = Math.round((price * (vendor.commitment_fee_percentage ?? 0)) / 100)
+        const expiryHours = this.config.get<number>('commitmentFeeExpiryHours') ?? 48
+        const appUrl = this.config.get<string>('appUrl') ?? 'http://localhost:3000'
+        await this.email.sendBookingWindowOpen({
+          to: organiserEmail,
+          organizerName: (interest.users as any)?.full_name ?? 'there',
+          vendorName: vendor.name,
+          eventTitle,
+          agreedPriceNaira: price,
+          commitmentFeeNaira: commitmentFee,
+          expiresInHours: expiryHours,
+          eventPageUrl: `${appUrl}/dashboard/events/${(interest as any).event_id}`,
+        })
+      }
     }
 
     return data

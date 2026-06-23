@@ -103,4 +103,22 @@ export class EventsController {
   ) {
     return this.events.updateBudgetBreakdown(id, body.budgetBreakdown, user.id)
   }
+
+  @Post(':id/thank-you/preview')
+  previewThankYouRecipients(
+    @Param('id') id: string,
+    @Body() body: { target: 'attendees' | 'gifters' | 'all' },
+    @CurrentUser() user: any,
+  ) {
+    return this.events.previewThankYouRecipients(id, user.id, body.target ?? 'all')
+  }
+
+  @Post(':id/thank-you')
+  sendThankYou(
+    @Param('id') id: string,
+    @Body() body: { target: 'attendees' | 'gifters' | 'all'; message: string; subject: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.events.sendThankYouMessages(id, user.id, body)
+  }
 }

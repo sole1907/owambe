@@ -3,6 +3,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { VendorInterestsService } from './vendor-interests.service'
 import { makeSupabaseMock, q } from '../test/supabase.mock'
 import { EmailService } from '../email/email.service'
@@ -11,6 +12,15 @@ const mockEmail = {
   sendVendorInquiry: jest.fn().mockResolvedValue(undefined),
   sendVendorResponse: jest.fn().mockResolvedValue(undefined),
   sendOrganiserCancelledToVendor: jest.fn().mockResolvedValue(undefined),
+  sendBookingWindowOpen: jest.fn().mockResolvedValue(undefined),
+}
+
+const mockConfig = {
+  get: jest.fn((key: string) => {
+    if (key === 'commitmentFeeExpiryHours') return 48
+    if (key === 'appUrl') return 'http://localhost:3000'
+    return undefined
+  }),
 }
 
 const eventRow = {
@@ -46,7 +56,11 @@ const interestRow = {
 
 function makeService(fromMap: Record<string, ReturnType<typeof q>> = {}) {
   const supabase = makeSupabaseMock(fromMap)
-  const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+  const service = new VendorInterestsService(
+    supabase as any,
+    mockEmail as any as EmailService,
+    mockConfig as any as ConfigService,
+  )
   return { service, supabase }
 }
 
@@ -70,7 +84,11 @@ describe('VendorInterestsService', () => {
         if (table === 'vendor_interests') return q({ data: null, error: { message: 'DB error' } })
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       await expect(service.getInterests('evt-1', 'user-1')).rejects.toThrow(
         InternalServerErrorException,
       )
@@ -83,7 +101,11 @@ describe('VendorInterestsService', () => {
         if (table === 'vendor_interests') return q({ data: [interestRow], error: null })
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       const result = await service.getInterests('evt-1', 'user-1')
       expect(result).toHaveLength(1)
     })
@@ -116,7 +138,11 @@ describe('VendorInterestsService', () => {
         if (table === 'vendors') return q({ data: null, error: { message: 'not found' } })
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       await expect(
         service.addInterest('evt-1', 'user-1', { vendorId: 'ven-1', preferenceRank: 1 } as any),
       ).rejects.toThrow(NotFoundException)
@@ -138,7 +164,11 @@ describe('VendorInterestsService', () => {
           })
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       await expect(
         service.addInterest('evt-1', 'user-1', { vendorId: 'ven-1', preferenceRank: 1 } as any),
       ).rejects.toThrow(BadRequestException)
@@ -157,7 +187,11 @@ describe('VendorInterestsService', () => {
         }
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       await expect(
         service.addInterest('evt-1', 'user-1', { vendorId: 'ven-1', preferenceRank: 1 } as any),
       ).rejects.toThrow(BadRequestException)
@@ -178,7 +212,11 @@ describe('VendorInterestsService', () => {
         }
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       await expect(
         service.addInterest('evt-1', 'user-1', { vendorId: 'ven-1', preferenceRank: 1 } as any),
       ).rejects.toThrow(BadRequestException)
@@ -197,7 +235,11 @@ describe('VendorInterestsService', () => {
         }
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       const result = await service.addInterest('evt-1', 'user-1', {
         vendorId: 'ven-1',
         preferenceRank: 1,
@@ -224,7 +266,11 @@ describe('VendorInterestsService', () => {
         }
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       const result = await service.addInterest('evt-1', 'user-1', {
         vendorId: 'ven-1',
         preferenceRank: 1,
@@ -254,7 +300,11 @@ describe('VendorInterestsService', () => {
         }
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       await expect(service.removeInterest('evt-1', 'int-1', 'user-1')).rejects.toThrow(
         InternalServerErrorException,
       )
@@ -271,7 +321,11 @@ describe('VendorInterestsService', () => {
         }
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       const result = await service.removeInterest('evt-1', 'int-1', 'user-1')
       expect(result.message).toBe('Removed from shortlist')
     })
@@ -355,7 +409,11 @@ describe('VendorInterestsService', () => {
         }
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       const result = await service.counterBack('evt-1', 'int-1', 'user-1', 550000)
       expect(result.status).toBe('pending')
       expect(mockEmail.sendVendorInquiry).toHaveBeenCalled()
@@ -411,7 +469,11 @@ describe('VendorInterestsService', () => {
         }
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       const result = await service.acceptCounter('evt-1', 'int-1', 'user-1')
       expect(result.status).toBe('available')
       expect(result.agreed_price).toBe(600000)
@@ -435,7 +497,11 @@ describe('VendorInterestsService', () => {
           return q({ data: [{ status: 'pending' }, { status: 'pending' }], error: null })
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       const result = await service.getInquiryCounts('user-1')
       expect(result.pending).toBe(2)
     })
@@ -456,7 +522,11 @@ describe('VendorInterestsService', () => {
         if (table === 'vendor_interests') return q({ data: null, error: { message: 'DB error' } })
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       await expect(service.getInquiries('user-1')).rejects.toThrow(InternalServerErrorException)
     })
 
@@ -467,7 +537,11 @@ describe('VendorInterestsService', () => {
         if (table === 'vendor_interests') return q({ data: [interestRow], error: null })
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       const result = await service.getInquiries('user-1')
       expect(result).toHaveLength(1)
     })
@@ -505,7 +579,11 @@ describe('VendorInterestsService', () => {
         if (table === 'vendor_interests') return q({ data: null, error: { message: 'not found' } })
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       await expect(
         service.respondToInquiry('user-1', 'int-1', { available: true } as any),
       ).rejects.toThrow(NotFoundException)
@@ -519,7 +597,11 @@ describe('VendorInterestsService', () => {
           return q({ data: { ...respondInterestRow, status: 'committed' }, error: null })
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       await expect(
         service.respondToInquiry('user-1', 'int-1', { available: true } as any),
       ).rejects.toThrow(BadRequestException)
@@ -533,7 +615,11 @@ describe('VendorInterestsService', () => {
           return q({ data: { ...respondInterestRow, is_final_offer: true }, error: null })
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       await expect(
         service.respondToInquiry('user-1', 'int-1', {
           available: true,
@@ -549,7 +635,11 @@ describe('VendorInterestsService', () => {
         if (table === 'vendor_interests') return q({ data: respondInterestRow, error: null })
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       await service.respondToInquiry('user-1', 'int-1', { available: false } as any)
       expect(mockEmail.sendVendorResponse).toHaveBeenCalledWith(
         expect.objectContaining({ available: false }),
@@ -571,7 +661,11 @@ describe('VendorInterestsService', () => {
         }
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       const result = await service.respondToInquiry('user-1', 'int-1', {
         available: true,
         counterPrice: 600000,
@@ -594,7 +688,11 @@ describe('VendorInterestsService', () => {
         }
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       const result = await service.respondToInquiry('user-1', 'int-1', { available: true } as any)
       expect(result.status).toBe('available')
     })
@@ -655,7 +753,11 @@ describe('VendorInterestsService', () => {
         if (table === 'cancellation_events') return q({ data: null, error: null })
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       const result = await service.cancelBookingAsOrganiser('evt-1', 'int-1', 'user-1')
       expect(result.heldKobo).toBe(150000)
       expect(mockEmail.sendOrganiserCancelledToVendor).toHaveBeenCalled()
@@ -693,7 +795,11 @@ describe('VendorInterestsService', () => {
           return q({ data: null, error: { message: 'not found' } })
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       await expect(service.getCancellationStatus('evt-1', 'int-1', 'user-1')).rejects.toThrow(
         NotFoundException,
       )
@@ -708,7 +814,11 @@ describe('VendorInterestsService', () => {
         if (table === 'booking_cancellations') return q({ data: cancellationData, error: null })
         return q()
       })
-      const service = new VendorInterestsService(supabase as any, mockEmail as any as EmailService)
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
       const result = await service.getCancellationStatus('evt-1', 'int-1', 'user-1')
       expect(result).toEqual(cancellationData)
     })
