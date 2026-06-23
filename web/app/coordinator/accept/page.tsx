@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth'
 import Link from 'next/link'
@@ -9,7 +9,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
 type State = 'loading' | 'accepting' | 'success' | 'already' | 'error' | 'needs_login'
 
-export default function AcceptCoordinatorInvitePage() {
+function AcceptCoordinatorInvite() {
   const params = useSearchParams()
   const router = useRouter()
   const { token } = useAuth()
@@ -127,5 +127,13 @@ export default function AcceptCoordinatorInvitePage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function AcceptCoordinatorInvitePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center"><p className="text-gray-400 text-sm">Loading…</p></div>}>
+      <AcceptCoordinatorInvite />
+    </Suspense>
   )
 }

@@ -195,14 +195,7 @@ const CANCELLATION_STATUS_BADGE: Record<CancellationStatus['status'], { label: s
 declare global {
   interface Window {
     PaystackPop: {
-      setup: (config: {
-        key: string
-        email: string
-        amount: number
-        ref: string
-        callback: (response: { reference: string }) => void | Promise<void>
-        onClose: () => void
-      }) => { openIframe: () => void }
+      setup: (config: Record<string, unknown>) => { openIframe: () => void }
     }
   }
 }
