@@ -112,7 +112,7 @@ export class CollaboratorsService {
     const { data, error } = await client
       .from('event_collaborators')
       .select(
-        'id, invited_email, role, status, accepted_at, message, created_at, users (full_name, email)',
+        'id, invited_email, role, status, accepted_at, message, created_at, users!user_id (full_name, email)',
       )
       .eq('event_id', eventId)
       .neq('status', 'revoked')
