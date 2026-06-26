@@ -25,10 +25,21 @@ export class VendorInterestsService {
       .from('events')
       .select('id, title, event_date, event_date_approximate, user_id')
       .eq('id', eventId)
-      .eq('user_id', userId)
       .single()
 
     if (eventError || !event) throw new NotFoundException('Event not found')
+
+    if (event.user_id !== userId) {
+      // Check if user is an active coordinator for this event
+      const { data: collab } = await client
+        .from('event_collaborators')
+        .select('id')
+        .eq('event_id', eventId)
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .maybeSingle()
+      if (!collab) throw new NotFoundException('Event not found')
+    }
 
     const { data, error } = await client
       .from('vendor_interests')
