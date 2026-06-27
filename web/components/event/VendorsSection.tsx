@@ -554,12 +554,14 @@ function ShortlistCard({
   onRemove,
   onCommitted,
   onCancelled,
+  onAvailable,
 }: {
   interest: Interest
   eventId: string
   onRemove: (id: string) => void
   onCommitted: (id: string) => void
   onCancelled: (id: string) => void
+  onAvailable: (id: string) => void
 }) {
   const { token, user } = useAuth()
   const vendor = interest.vendors
@@ -773,7 +775,7 @@ function ShortlistCard({
         <CounterNegotiationRow
           interest={interest}
           eventId={eventId}
-          onAccepted={onCommitted}
+          onAccepted={onAvailable}
           onCounterBack={onCommitted}
           onDecline={onRemove}
         />
@@ -1654,6 +1656,12 @@ export default function VendorsSection({
     )
   }
 
+  const handleAvailable = (interestId: string) => {
+    setInterests((prev) =>
+      prev.map((i) => (i.id === interestId ? { ...i, status: 'available' as const } : i)),
+    )
+  }
+
   const handleCancelled = (interestId: string) => {
     setInterests((prev) =>
       prev.map((i) => (i.id === interestId ? { ...i, status: 'cancelled' as const } : i)),
@@ -1762,6 +1770,7 @@ export default function VendorsSection({
                         onRemove={removing === interest.id ? () => {} : handleRemove}
                         onCommitted={handleCommitted}
                         onCancelled={handleCancelled}
+                        onAvailable={handleAvailable}
                       />
                     ))}
                 </div>
