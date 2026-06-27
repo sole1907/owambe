@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, ForbiddenException, Get, Post, UseGuards } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { AuthService } from './auth.service'
 import { SignUpDto } from './dto/signup.dto'
 import { SignInDto } from './dto/signin.dto'
@@ -7,7 +8,10 @@ import { CurrentUser } from './decorators/current-user.decorator'
 
 @Controller('auth')
 export class AuthController {
-  constructor(private auth: AuthService) {}
+  constructor(
+    private auth: AuthService,
+    private config: ConfigService,
+  ) {}
 
   @Post('signup')
   signUp(@Body() dto: SignUpDto) {
@@ -38,5 +42,20 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: any) {
     return user
+  }
+
+  // ── Dev-only helpers (blocked in production) ──────────────────────────────
+
+  @Post('dev-confirm-email')
+  devConfirmEmail(@Body() body: { email: string }) {
+    if (this.config.get('NODE_ENV') === 'production') throw new ForbiddenException()
+    return this.auth.devConfirmEmail(body.email)
+  }
+
+  @Delete('dev-delete-account')
+  @UseGuards(JwtAuthGuard)
+  devDeleteAccount(@CurrentUser() user: any) {
+    if (this.config.get('NODE_ENV') === 'production') throw new ForbiddenException()
+    return this.auth.devDeleteAccount(user.id)
   }
 }

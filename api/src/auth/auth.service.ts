@@ -154,6 +154,28 @@ export class AuthService {
     return { message: 'Your password has been reset. You can now sign in.' }
   }
 
+  async devConfirmEmail(email: string) {
+    const adminClient = this.supabase.getAdminClient()
+    const { data: dbUser, error: dbErr } = await adminClient
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single()
+    if (dbErr || !dbUser) throw new BadRequestException('User not found')
+    const { error } = await adminClient.auth.admin.updateUserById(dbUser.id, {
+      email_confirm: true,
+    })
+    if (error) throw new BadRequestException(error.message)
+    return { confirmed: true }
+  }
+
+  async devDeleteAccount(userId: string) {
+    const adminClient = this.supabase.getAdminClient()
+    await adminClient.from('users').delete().eq('id', userId)
+    await adminClient.auth.admin.deleteUser(userId)
+    return { deleted: true }
+  }
+
   private issueToken(user: { id: string; email: string; role: string }) {
     return this.jwt.sign({ sub: user.id, email: user.email, role: user.role })
   }
