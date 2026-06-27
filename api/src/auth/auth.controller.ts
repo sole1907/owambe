@@ -46,6 +46,12 @@ export class AuthController {
 
   // ── Dev-only helpers (blocked in production) ──────────────────────────────
 
+  @Post('dev-create-user')
+  devCreateUser(@Body() body: { email: string; password: string; fullName: string }) {
+    if (this.config.get('NODE_ENV') === 'production') throw new ForbiddenException()
+    return this.auth.devCreateUser(body.email, body.password, body.fullName)
+  }
+
   @Post('dev-confirm-email')
   devConfirmEmail(@Body() body: { email: string }) {
     if (this.config.get('NODE_ENV') === 'production') throw new ForbiddenException()

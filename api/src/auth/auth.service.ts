@@ -154,6 +154,30 @@ export class AuthService {
     return { message: 'Your password has been reset. You can now sign in.' }
   }
 
+  async devCreateUser(email: string, password: string, fullName: string) {
+    const adminClient = this.supabase.getAdminClient()
+    const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    })
+    if (authError) throw new BadRequestException(authError.message)
+
+    const { error: dbError } = await adminClient.from('users').insert({
+      id: authData.user.id,
+      email,
+      full_name: fullName,
+      phone: null,
+      role: 'user',
+    })
+    if (dbError) {
+      await adminClient.auth.admin.deleteUser(authData.user.id).catch(() => null)
+      throw new BadRequestException(dbError.message)
+    }
+
+    return { id: authData.user.id, confirmed: true }
+  }
+
   async devConfirmEmail(email: string) {
     const adminClient = this.supabase.getAdminClient()
     const { data: dbUser, error: dbErr } = await adminClient
