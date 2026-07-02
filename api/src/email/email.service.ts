@@ -333,6 +333,7 @@ export class EmailService {
   private readonly logger = new Logger(EmailService.name)
   private readonly from = 'Owambe <invites@owambe.app>'
   private readonly testIntercept: string | null = null
+  private readonly appUrl: string
 
   constructor(private config: ConfigService) {
     const key = this.config.get<string>('RESEND_API_KEY')
@@ -342,6 +343,7 @@ export class EmailService {
       this.logger.warn('RESEND_API_KEY is not set — emails will not be sent')
     }
     this.testIntercept = this.config.get<string>('testEmailIntercept') ?? null
+    this.appUrl = this.config.get<string>('appUrl') ?? 'http://localhost:3000'
   }
 
   // Intercept @owambe.test addresses — redirect to TEST_EMAIL_INTERCEPT
@@ -520,9 +522,7 @@ export class EmailService {
         </td></tr>
       </table>
 
-      <p style="margin:0 0 20px;font-size:14px;color:#6b7280;text-align:center;">
-        Log in to your vendor portal to confirm your availability and price.
-      </p>
+      ${primaryBtn('View enquiry in vendor portal', `${this.appUrl}/vendor/inquiries`)}
     `
     await this.send(params.to, `New availability enquiry — ${params.eventTitle}`, content)
   }
@@ -559,9 +559,10 @@ export class EmailService {
       ${subtext(`Hi <strong style="color:#111;">${params.organizerName}</strong>,`)}
       ${eventCard(params.eventTitle, params.eventDate, '')}
       ${statusBlock}
-      <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
-        ${available ? 'Log in to your event dashboard to proceed with this booking.' : 'Consider choosing your B or C option for this category.'}
-      </p>
+      ${primaryBtn(
+        available ? 'Go to event dashboard' : 'View shortlist options',
+        `${this.appUrl}/dashboard`,
+      )}
     `
     await this.send(
       params.to,
@@ -713,9 +714,7 @@ export class EmailService {
       </table>`
       }
 
-      <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
-        We recommend finding a replacement vendor as soon as possible. Log in to your event dashboard to shortlist alternatives.
-      </p>
+      ${primaryBtn('Find a replacement vendor', `${this.appUrl}/dashboard`)}
     `
     await this.send(
       params.to,
@@ -773,6 +772,7 @@ export class EmailService {
       <p style="margin:0 0 20px;font-size:14px;color:#6b7280;">
         Please log in to your vendor portal to initiate the refund. If you need an extra 7 days, you can request a one-time extension there.
       </p>
+      ${primaryBtn('Go to vendor portal', `${this.appUrl}/vendor/payments`)}
       <p style="margin:0;font-size:13px;color:#9ca3af;">
         Your profile has been suspended and will remain so until the refund is confirmed.
       </p>
@@ -859,9 +859,10 @@ export class EmailService {
         </td></tr>
       </table>
 
-      <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
-        Please ensure your bank account details are up to date in your vendor portal. Payments are processed automatically on the release date.
+      <p style="margin:0 0 16px;font-size:13px;color:#6b7280;text-align:center;">
+        Please ensure your bank account details are up to date. Payments are processed automatically on the release date.
       </p>
+      ${primaryBtn('Check bank details', `${this.appUrl}/vendor/bank`)}
     `
     await this.send(
       params.to,
@@ -949,9 +950,7 @@ export class EmailService {
         </td></tr>
       </table>
 
-      <p style="margin:0;font-size:13px;color:#6b7280;text-align:center;">
-        Log in to your Owambe dashboard to review your full payment schedule.
-      </p>
+      ${primaryBtn('View payment schedule', `${this.appUrl}/dashboard`)}
     `
     await this.send(
       params.to,
