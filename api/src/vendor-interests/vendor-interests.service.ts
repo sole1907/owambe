@@ -82,7 +82,8 @@ export class VendorInterestsService {
       .select(
         `id, name, email, whatsapp, city, capacity,
         vendor_categories (id, name, slug),
-        vendor_availability (date, status)`,
+        vendor_availability (date, status),
+        users (email)`,
       )
       .eq('id', dto.vendorId)
       .eq('is_active', true)
@@ -276,7 +277,8 @@ export class VendorInterestsService {
       })
     }
 
-    if (initialStatus === 'pending' && v.email) {
+    const vendorEmail = v.email || v.users?.email || null
+    if (initialStatus === 'pending' && vendorEmail) {
       const offeredPriceFormatted = dto.offeredPrice
         ? new Intl.NumberFormat('en-NG', {
             style: 'currency',
@@ -286,7 +288,7 @@ export class VendorInterestsService {
         : null
 
       await this.email.sendVendorInquiry({
-        to: v.email,
+        to: vendorEmail,
         vendorName: v.name,
         eventTitle: event.title,
         eventDate: eventDate ?? event.event_date_approximate ?? 'Date TBC',
@@ -362,7 +364,7 @@ export class VendorInterestsService {
     const { data: interest, error } = await client
       .from('vendor_interests')
       .select(
-        'id, status, vendor_id, offered_price, counter_price, is_final_offer, events(title, city, event_date), vendors(name, email)',
+        'id, status, vendor_id, offered_price, counter_price, is_final_offer, events(title, city, event_date), vendors(name, email, users(email))',
       )
       .eq('id', interestId)
       .eq('event_id', eventId)
@@ -395,7 +397,8 @@ export class VendorInterestsService {
     if (updateError) throw new InternalServerErrorException(updateError.message)
 
     // Notify vendor of the counter-back
-    const vendorEmail = (interest.vendors as any)?.email
+    const vendorEmail =
+      (interest.vendors as any)?.email || (interest.vendors as any)?.users?.email || null
     if (vendorEmail) {
       const fmt = (v: number) =>
         new Intl.NumberFormat('en-NG', {
@@ -638,7 +641,7 @@ export class VendorInterestsService {
         `
         id, status, vendor_id,
         events!inner (id, user_id),
-        vendors (name, email)
+        vendors (name, email, users(email))
       `,
       )
       .eq('id', interestId)
@@ -723,7 +726,8 @@ export class VendorInterestsService {
       .insert(events.map((e) => ({ ...e, cancellation_id: cancellation.id })))
 
     // Notify vendor
-    const vendorEmail = (interest.vendors as any)?.email
+    const vendorEmail =
+      (interest.vendors as any)?.email || (interest.vendors as any)?.users?.email || null
     if (vendorEmail) {
       await this.email.sendOrganiserCancelledToVendor({
         to: vendorEmail,
