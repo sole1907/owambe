@@ -22,3 +22,6 @@ npm-debug.log*
 # IDE
 .vscode/
 .idea/
+
+# Claude Code local settings (personal, not shared)
+.claude/
