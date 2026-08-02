@@ -296,6 +296,19 @@ export class PaymentsService {
       .eq('id', payment.user_id)
       .single()
 
+    // Mark the vendor's calendar as booked for the event date (overrides any manual block)
+    if (event?.event_date) {
+      await client.from('vendor_availability').upsert(
+        {
+          vendor_id: payment.vendor_id,
+          date: event.event_date,
+          status: 'booked',
+          event_id: payment.event_id,
+        },
+        { onConflict: 'vendor_id,date' },
+      )
+    }
+
     const eventDate = event?.event_date ?? event?.event_date_approximate ?? 'TBC'
     const amountNaira = payment.amount_kobo / 100
 

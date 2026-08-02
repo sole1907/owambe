@@ -54,11 +54,13 @@ export default function EventPage() {
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
   const tabParam = searchParams.get('tab')
+  const vendorParam = searchParams.get('vendor')
   const validTabs = ['checklist', 'budget', 'vendors', 'guests', 'gifts', 'team'] as const
   type TabType = typeof validTabs[number]
-  const [activeTab, setActiveTab] = useState<TabType>(
-    validTabs.includes(tabParam as TabType) ? (tabParam as TabType) : 'checklist',
-  )
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    if (validTabs.includes(tabParam as TabType)) return tabParam as TabType
+    return vendorParam ? 'vendors' : 'checklist'
+  })
   const [pendingRequestCount, setPendingRequestCount] = useState(0)
   const [editOpen, setEditOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
@@ -232,6 +234,7 @@ export default function EventPage() {
           guestCount={event.guest_count_estimate}
           initialCategory={initialVendorCategory}
           budgetBreakdown={event.event_plans?.budget_breakdown}
+          initialVendorSlug={vendorParam ?? undefined}
         />
       )}
       {activeTab === 'guests' && <GuestListSection eventId={event.id} />}

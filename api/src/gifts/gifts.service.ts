@@ -355,7 +355,7 @@ export class GiftsService {
 
     const organiser = (eventData as any)?.['users!user_id'] ?? (eventData as any)?.users
     const appUrl = this.config.get<string>('appUrl') ?? 'http://localhost:3000'
-    const confirmUrl = `${appUrl}/dashboard/events/${eventId}/gifts`
+    const confirmUrl = `${appUrl}/events/${eventId}?tab=gifts`
 
     if (organiser?.email) {
       this.email

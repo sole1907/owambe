@@ -762,6 +762,34 @@ describe('VendorInterestsService', () => {
       expect(result.heldKobo).toBe(150000)
       expect(mockEmail.sendOrganiserCancelledToVendor).toHaveBeenCalled()
     })
+
+    it('frees up the vendor calendar for the event date', async () => {
+      const supabase = makeSupabaseMock()
+      const availabilityDelete = jest.fn().mockReturnThis()
+      supabase._mockFrom.mockImplementation((table: string) => {
+        if (table === 'vendor_interests') return q({ data: cancelledInterest, error: null })
+        if (table === 'interest_payment_schedule')
+          return q({
+            data: [{ bucket: 'commitment', amount_kobo: 150000, status: 'scheduled' }],
+            error: null,
+          })
+        if (table === 'booking_cancellations') return q({ data: { id: 'canc-1' }, error: null })
+        if (table === 'cancellation_events') return q({ data: null, error: null })
+        if (table === 'vendor_availability') {
+          const builder = q()
+          builder.delete = availabilityDelete
+          return builder
+        }
+        return q()
+      })
+      const service = new VendorInterestsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
+      await service.cancelBookingAsOrganiser('evt-1', 'int-1', 'user-1')
+      expect(availabilityDelete).toHaveBeenCalled()
+    })
   })
 
   describe('getCancellationStatus()', () => {

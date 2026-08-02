@@ -158,6 +158,19 @@ export class CollaboratorsService {
     if (error || !collab) throw new NotFoundException('Invite not found or already used')
     if (collab.status === 'revoked')
       throw new ForbiddenException('This invitation has been revoked')
+
+    const { data: acceptingUser } = await client
+      .from('users')
+      .select('email')
+      .eq('id', userId)
+      .single()
+
+    if (acceptingUser?.email?.toLowerCase().trim() !== collab.invited_email) {
+      throw new ForbiddenException(
+        `This invitation was sent to ${collab.invited_email}. Sign in with that email address to accept it.`,
+      )
+    }
+
     if (collab.status === 'active') return { eventId: collab.event_id, alreadyAccepted: true }
 
     await client

@@ -158,6 +158,7 @@ describe('CollaboratorsService', () => {
       client.from = jest
         .fn()
         .mockReturnValueOnce(q({ data: collab }))
+        .mockReturnValueOnce(q({ data: { email: 'coord@test.com' } }))
         .mockReturnValueOnce(q({ data: null }))
 
       const result = await svc.acceptInvite('valid-token', 'user-1')
@@ -173,10 +174,29 @@ describe('CollaboratorsService', () => {
         status: 'active',
         invited_email: 'coord@test.com',
       }
-      client.from = jest.fn().mockReturnValueOnce(q({ data: collab }))
+      client.from = jest
+        .fn()
+        .mockReturnValueOnce(q({ data: collab }))
+        .mockReturnValueOnce(q({ data: { email: 'coord@test.com' } }))
 
       const result = await svc.acceptInvite('valid-token', 'user-1')
       expect(result.alreadyAccepted).toBe(true)
+    })
+
+    it('throws ForbiddenException when accepting account email does not match the invite', async () => {
+      const { svc, client } = makeService()
+      const collab = {
+        id: 'col-1',
+        event_id: 'event-1',
+        status: 'pending',
+        invited_email: 'coord@test.com',
+      }
+      client.from = jest
+        .fn()
+        .mockReturnValueOnce(q({ data: collab }))
+        .mockReturnValueOnce(q({ data: { email: 'someoneelse@test.com' } }))
+
+      await expect(svc.acceptInvite('valid-token', 'user-1')).rejects.toThrow(ForbiddenException)
     })
 
     it('throws ForbiddenException for revoked invite', async () => {

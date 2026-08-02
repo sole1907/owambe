@@ -120,20 +120,21 @@ export default function GuestListSection({ eventId }: Props) {
   const handleSubmit = async () => {
     if (!form.fullName || !form.email) return
     setSaving(true)
+    const allocation = Number.isNaN(form.allocation) ? 1 : Math.min(20, Math.max(1, form.allocation))
     try {
       if (editingGuest) {
         await api.patch(`/guests/${editingGuest.id}`, {
           fullName: form.fullName,
           email: form.email,
           phone: form.phone || undefined,
-          allocation: form.allocation,
+          allocation,
         }, token ?? undefined)
       } else {
         await api.post(`/events/${eventId}/guests`, {
           fullName: form.fullName,
           email: form.email,
           phone: form.phone || undefined,
-          allocation: form.allocation,
+          allocation,
         }, token ?? undefined)
       }
       await fetchGuests()
@@ -418,8 +419,17 @@ export default function GuestListSection({ eventId }: Props) {
                 type="number"
                 min={1}
                 max={20}
-                value={form.allocation}
-                onChange={(e) => setForm({ ...form, allocation: parseInt(e.target.value) || 1 })}
+                value={Number.isNaN(form.allocation) ? '' : form.allocation}
+                onChange={(e) => {
+                  const raw = e.target.value
+                  setForm({ ...form, allocation: raw === '' ? NaN : parseInt(raw, 10) })
+                }}
+                onBlur={() =>
+                  setForm((f) => ({
+                    ...f,
+                    allocation: Number.isNaN(f.allocation) ? 1 : Math.min(20, Math.max(1, f.allocation)),
+                  }))
+                }
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
               />
             </div>

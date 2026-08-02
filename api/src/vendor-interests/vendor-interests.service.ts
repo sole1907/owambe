@@ -465,7 +465,7 @@ export class VendorInterestsService {
         agreedPriceNaira: price,
         commitmentFeeNaira: commitmentFee,
         expiresInHours: expiryHours,
-        eventPageUrl: `${appUrl}/dashboard/events/${interest.event_id}`,
+        eventPageUrl: `${appUrl}/events/${interest.event_id}?tab=vendors`,
       })
     }
 
@@ -622,7 +622,7 @@ export class VendorInterestsService {
           agreedPriceNaira: price,
           commitmentFeeNaira: commitmentFee,
           expiresInHours: expiryHours,
-          eventPageUrl: `${appUrl}/dashboard/events/${(interest as any).event_id}`,
+          eventPageUrl: `${appUrl}/events/${(interest as any).event_id}?tab=vendors`,
         })
       }
     }
@@ -640,7 +640,7 @@ export class VendorInterestsService {
       .select(
         `
         id, status, vendor_id,
-        events!inner (id, user_id),
+        events!inner (id, user_id, event_date),
         vendors (name, email, users(email))
       `,
       )
@@ -686,6 +686,17 @@ export class VendorInterestsService {
         cancelled_by: 'organiser',
       })
       .eq('id', interestId)
+
+    // Free up the vendor's calendar for that date
+    const cancelledEventDate = (interest.events as any)?.event_date
+    if (cancelledEventDate) {
+      await client
+        .from('vendor_availability')
+        .delete()
+        .eq('vendor_id', interest.vendor_id)
+        .eq('date', cancelledEventDate)
+        .eq('status', 'booked')
+    }
 
     const { data: cancellation, error: ce } = await client
       .from('booking_cancellations')

@@ -443,6 +443,64 @@ describe('PaymentsService', () => {
       expect(mockEmail.sendCommitmentConfirmedToVendor).toHaveBeenCalled()
     })
 
+    it('marks the vendor calendar as booked for the event date', async () => {
+      const supabase = makeSupabaseMock()
+      const availabilityUpsert = jest.fn().mockReturnThis()
+      supabase._mockFrom.mockImplementation((table: string) => {
+        if (table === 'commitment_payments')
+          return q({
+            data: {
+              id: 'pay-1',
+              status: 'pending',
+              interest_id: 'int-1',
+              event_id: 'evt-1',
+              vendor_id: 'ven-1',
+              user_id: 'user-1',
+              amount_kobo: 150000,
+              commitment_pct: 30,
+            },
+            error: null,
+          })
+        if (table === 'vendors') return q({ data: vendorRow, error: null })
+        if (table === 'events') return q({ data: eventRow, error: null })
+        if (table === 'users') return q({ data: userRow, error: null })
+        if (table === 'vendor_payment_structures') return q({ data: null, error: null })
+        if (table === 'vendor_interests') return q({ data: null, error: null })
+        if (table === 'vendor_availability') {
+          const builder = q()
+          builder.upsert = availabilityUpsert
+          return builder
+        }
+        return q()
+      })
+      mockFetch({
+        status: true,
+        message: 'OK',
+        data: {
+          status: 'success',
+          reference: 'ref-1',
+          amount: 150000,
+          paid_at: '2099-01-01',
+          metadata: {},
+        },
+      })
+      const service = new PaymentsService(
+        supabase as any,
+        mockEmail as any as EmailService,
+        mockConfig as any as ConfigService,
+      )
+      await service.confirmPayment('ref-1')
+      expect(availabilityUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          vendor_id: 'ven-1',
+          date: eventRow.event_date,
+          status: 'booked',
+          event_id: 'evt-1',
+        }),
+        { onConflict: 'vendor_id,date' },
+      )
+    })
+
     it('falls back to users.email when vendors.email is null', async () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {

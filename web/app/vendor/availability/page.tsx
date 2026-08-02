@@ -14,6 +14,12 @@ function pad(n: number) {
   return String(n).padStart(2, '0')
 }
 
+// Local calendar date, not UTC — toISOString() shifts to UTC and can land on
+// the wrong day near midnight for timezones ahead of UTC (e.g. Lagos, UTC+1).
+function localDateStr(d: Date) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 export default function VendorAvailabilityPage() {
   const { token } = useAuth()
   const today = new Date()
@@ -62,7 +68,7 @@ export default function VendorAvailabilityPage() {
     const status = availability[dateStr]
     if (status === 'booked') return // can't change booked dates
 
-    const isPast = dateStr < today.toISOString().split('T')[0]
+    const isPast = dateStr < localDateStr(today)
     if (isPast) return
 
     setToggling(dateStr)
@@ -89,7 +95,7 @@ export default function VendorAvailabilityPage() {
   // Build calendar grid
   const firstDay = new Date(year, month - 1, 1).getDay() // 0=Sun
   const daysInMonth = new Date(year, month, 0).getDate()
-  const todayStr = today.toISOString().split('T')[0]
+  const todayStr = localDateStr(today)
 
   const cells: (number | null)[] = [
     ...Array(firstDay).fill(null),

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useAuth } from '@/context/auth'
 import { api } from '@/lib/api'
+import ShortlistButton from '@/components/ShortlistButton'
 
 type Category = { id: string; name: string; slug: string }
 type Vendor = {
@@ -113,40 +114,43 @@ export default function VendorsPage() {
               : 'Price on request'
 
             return (
-              <Link
+              <div
                 key={vendor.id}
-                href={`/vendors/${vendor.slug}`}
-                className="block bg-white border border-gray-200 rounded-2xl overflow-hidden hover:border-black transition"
+                className="bg-white border border-gray-200 rounded-2xl overflow-hidden hover:border-black transition"
               >
-                {/* Photo */}
-                {vendor.photos?.[0] ? (
-                  <div className="relative w-full h-36">
-                    <Image
-                      src={vendor.photos[0]}
-                      alt={vendor.name}
-                      fill
-                      className="object-cover"
-                    />
-                    {vendor.is_featured && (
-                      <span className="absolute top-2 left-2 text-xs bg-black text-white px-2 py-0.5 rounded-full">
-                        Featured
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <div className="relative w-full h-36 bg-gray-100 flex items-center justify-center">
-                    <span className="text-gray-300 text-sm">No photo yet</span>
-                    {vendor.is_featured && (
-                      <span className="absolute top-2 left-2 text-xs bg-black text-white px-2 py-0.5 rounded-full">
-                        Featured
-                      </span>
-                    )}
-                  </div>
-                )}
+                <Link href={`/vendors/${vendor.slug}`} className="block">
+                  {/* Photo */}
+                  {vendor.photos?.[0] ? (
+                    <div className="relative w-full h-36">
+                      <Image
+                        src={vendor.photos[0]}
+                        alt={vendor.name}
+                        fill
+                        className="object-cover"
+                      />
+                      {vendor.is_featured && (
+                        <span className="absolute top-2 left-2 text-xs bg-black text-white px-2 py-0.5 rounded-full">
+                          Featured
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="relative w-full h-36 bg-gray-100 flex items-center justify-center">
+                      <span className="text-gray-300 text-sm">No photo yet</span>
+                      {vendor.is_featured && (
+                        <span className="absolute top-2 left-2 text-xs bg-black text-white px-2 py-0.5 rounded-full">
+                          Featured
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </Link>
 
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-0.5 gap-2">
-                    <h2 className="font-semibold text-gray-900 text-sm leading-tight">{vendor.name}</h2>
+                    <Link href={`/vendors/${vendor.slug}`} className="hover:underline">
+                      <h2 className="font-semibold text-gray-900 text-sm leading-tight">{vendor.name}</h2>
+                    </Link>
                     <span className="text-xs text-gray-500 shrink-0">★ {vendor.rating} ({vendor.review_count})</span>
                   </div>
 
@@ -163,9 +167,12 @@ export default function VendorsPage() {
 
                   <p className="text-xs text-gray-500 line-clamp-2 mb-3">{vendor.description}</p>
 
-                  <p className="text-xs font-semibold text-gray-900">{priceLabel}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-gray-900">{priceLabel}</p>
+                    <ShortlistButton vendorSlug={vendor.slug} />
+                  </div>
                 </div>
-              </Link>
+              </div>
             )
           })}
         </div>

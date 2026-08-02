@@ -7,6 +7,7 @@ import Image from 'next/image'
 import { useAuth } from '@/context/auth'
 import { api } from '@/lib/api'
 import { capture } from '@/lib/posthog'
+import ShortlistButton from '@/components/ShortlistButton'
 
 type Review = {
   id: string
@@ -270,6 +271,12 @@ export default function VendorDetailPage() {
           <span className="text-xs bg-black text-white px-3 py-1 rounded-full shrink-0">Featured</span>
         )}
       </div>
+
+      <ShortlistButton
+        vendorSlug={vendor.slug}
+        label="+ Add to shortlist"
+        className="w-full py-3 mb-4 bg-black text-white rounded-xl text-sm font-medium hover:bg-gray-800 transition"
+      />
 
       <div className="flex items-center gap-3 mb-4">
         <span className="text-sm font-medium text-gray-700">★ {vendor.rating}</span>

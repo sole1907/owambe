@@ -59,9 +59,10 @@ export default function InvitePage() {
 
   const handlePlusOneRequest = async () => {
     setSubmitting(true)
+    const requestedCount = Number.isNaN(plusOneCount) ? 1 : Math.min(10, Math.max(1, plusOneCount))
     try {
       await api.post(`/invites/${token}/request-plus-one`, {
-        requestedCount: plusOneCount,
+        requestedCount,
         reason: plusOneReason || undefined,
       })
       setSubmitted(true)
@@ -72,7 +73,7 @@ export default function InvitePage() {
               ...prev,
               pendingPlusOneRequest: {
                 id: '',
-                requested_count: plusOneCount,
+                requested_count: requestedCount,
                 status: 'pending',
               },
             }
@@ -199,8 +200,14 @@ export default function InvitePage() {
                   type="number"
                   min={1}
                   max={10}
-                  value={plusOneCount}
-                  onChange={(e) => setPlusOneCount(parseInt(e.target.value) || 1)}
+                  value={Number.isNaN(plusOneCount) ? '' : plusOneCount}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    setPlusOneCount(raw === '' ? NaN : parseInt(raw, 10))
+                  }}
+                  onBlur={() =>
+                    setPlusOneCount((c) => (Number.isNaN(c) ? 1 : Math.min(10, Math.max(1, c))))
+                  }
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black"
                 />
               </div>

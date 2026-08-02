@@ -544,6 +544,32 @@ describe('VendorPortalService', () => {
       expect(mockEmail.sendRepaymentDemandToVendor).not.toHaveBeenCalled()
     })
 
+    it('frees up the vendor calendar for the event date', async () => {
+      const supabase = makeSupabaseMock()
+      const availabilityDelete = jest.fn().mockReturnThis()
+      supabase._mockFrom.mockImplementation((table: string) => {
+        if (table === 'vendors') return q({ data: vendorRow, error: null })
+        if (table === 'vendor_interests') return q({ data: interestWithSchedule, error: null })
+        if (table === 'interest_payment_schedule')
+          return q({
+            data: [{ bucket: 'commitment', amount_kobo: 150000, status: 'scheduled' }],
+            error: null,
+          })
+        if (table === 'booking_cancellations')
+          return q({ data: { id: 'canc-1', status: 'no_outstanding' }, error: null })
+        if (table === 'cancellation_events') return q({ data: null, error: null })
+        if (table === 'vendor_availability') {
+          const builder = q()
+          builder.delete = availabilityDelete
+          return builder
+        }
+        return q()
+      })
+      const service = new VendorPortalService(supabase as any, mockEmail as any as EmailService)
+      await service.cancelBookingAsVendor('user-1', 'int-1')
+      expect(availabilityDelete).toHaveBeenCalled()
+    })
+
     it('cancels booking with outstanding when funds were released', async () => {
       const supabase = makeSupabaseMock()
       supabase._mockFrom.mockImplementation((table: string) => {

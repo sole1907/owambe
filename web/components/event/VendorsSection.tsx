@@ -112,6 +112,15 @@ function formatNaira(value: number) {
   return `₦${value.toLocaleString()}`
 }
 
+function BudgetWarning({ amount, categoryBudget }: { amount: number; categoryBudget: number | null }) {
+  if (!categoryBudget || !amount || amount <= categoryBudget) return null
+  return (
+    <p className="text-xs text-red-600 mt-1.5 font-medium">
+      ⚠ {formatNaira(amount - categoryBudget)} over your {formatNaira(categoryBudget)} budget for this category
+    </p>
+  )
+}
+
 function getPricePerServing(
   tiers: MenuItemWithTiers['caterer_menu_pricing_tiers'],
   servings: number,
@@ -551,6 +560,7 @@ function CancellationThread({
 function ShortlistCard({
   interest,
   eventId,
+  categoryBudget,
   onRemove,
   onCommitted,
   onCancelled,
@@ -558,6 +568,7 @@ function ShortlistCard({
 }: {
   interest: Interest
   eventId: string
+  categoryBudget: number | null
   onRemove: (id: string) => void
   onCommitted: (id: string) => void
   onCancelled: (id: string) => void
@@ -784,6 +795,7 @@ function ShortlistCard({
       {interest.status === 'available' && !confirmCancel && (
         <div className="mt-3 pl-10 space-y-2">
           {payError && <p className="text-xs text-red-600">{payError}</p>}
+          <BudgetWarning amount={priceBasis ?? 0} categoryBudget={categoryBudget} />
 
           {/* Fee breakdown confirmation */}
           {feeBreakdown ? (
@@ -1013,14 +1025,17 @@ function AddInterestModal({
 
   const isCaterer = vendor.vendor_categories?.slug === 'caterers'
   const isDecorator = vendor.vendor_categories?.slug === 'decorators'
-  const hasCatererMenu = isCaterer && (vendor.menu_item_names?.length ?? 0) > 0
 
   const suggestedOffer = computeSuggestedOffer(vendor.price_min, vendor.price_max, categoryBudget)
   const [offerAmount, setOfferAmount] = useState<string>(suggestedOffer ? String(suggestedOffer) : '')
   const isMidpoint = suggestedOffer !== null && vendor.price_max !== null && vendor.price_max <= (categoryBudget ?? 0)
 
+  // Menu presence isn't known until fetched — the vendor object may come from an
+  // endpoint that doesn't populate menu_item_names (e.g. shortlisting straight
+  // from the vendors browse page), so always check rather than trusting a prop.
   const [vendorMenu, setVendorMenu] = useState<MenuItemWithTiers[]>([])
-  const [menuLoading, setMenuLoading] = useState(false)
+  const [menuLoading, setMenuLoading] = useState(isCaterer)
+  const hasCatererMenu = isCaterer && vendorMenu.length > 0
   const defaultServings = guestCount ?? 100
   const [menuSelections, setMenuSelections] = useState<Record<string, { checked: boolean; servings: number }>>({})
   const [discountPct, setDiscountPct] = useState('')
@@ -1048,7 +1063,7 @@ function AddInterestModal({
     : 0
 
   useEffect(() => {
-    if (!hasCatererMenu || !token) return
+    if (!isCaterer || !token) return
     setMenuLoading(true)
     api
       .get<MenuItemWithTiers[]>(`/vendors/${vendor.slug}/menu`, token)
@@ -1062,11 +1077,11 @@ function AddInterestModal({
       })
       .catch(() => {})
       .finally(() => setMenuLoading(false))
-  }, [hasCatererMenu, token, vendor.slug, defaultServings])
+  }, [isCaterer, token, vendor.slug, defaultServings])
 
   const menuTotal = vendorMenu.reduce((sum, item) => {
     const sel = menuSelections[item.id]
-    if (!sel?.checked) return sum
+    if (!sel?.checked || Number.isNaN(sel.servings)) return sum
     const price = getPricePerServing(item.caterer_menu_pricing_tiers, sel.servings)
     return sum + price * sel.servings
   }, 0)
@@ -1101,7 +1116,9 @@ function AddInterestModal({
           .filter((item) => menuSelections[item.id]?.checked)
           .map((item) => ({
             menuItemId: item.id,
-            servings: menuSelections[item.id].servings,
+            servings: Number.isNaN(menuSelections[item.id].servings)
+              ? 1
+              : Math.max(1, menuSelections[item.id].servings),
           }))
         const pct = parseFloat(discountPct)
         const discountRequested = menuTotal > 0 && pct > 0 ? Math.round(menuTotal * pct / 100) : undefined
@@ -1228,6 +1245,7 @@ function AddInterestModal({
                       <span className="text-sm font-semibold text-gray-900">Total</span>
                       <span className="text-sm font-bold text-gray-900">{formatNaira(packageTotal)}</span>
                     </div>
+                    <BudgetWarning amount={packageTotal} categoryBudget={categoryBudget} />
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">
                         Request a discount (optional)
@@ -1274,7 +1292,7 @@ function AddInterestModal({
               </span>
             </label>
           </div>
-        ) : hasCatererMenu ? (
+        ) : isCaterer && (menuLoading || hasCatererMenu) ? (
           <div className="mb-4">
             {menuLoading ? (
               <p className="text-xs text-gray-400 py-4">Loading menu...</p>
@@ -1310,12 +1328,26 @@ function AddInterestModal({
                                 <input
                                   type="number"
                                   min={1}
-                                  value={sel.servings}
-                                  onChange={(e) =>
+                                  value={Number.isNaN(sel.servings) ? '' : sel.servings}
+                                  onChange={(e) => {
+                                    const raw = e.target.value
                                     setMenuSelections((prev) => ({
                                       ...prev,
-                                      [item.id]: { ...sel, servings: parseInt(e.target.value, 10) || 1 },
+                                      [item.id]: { ...sel, servings: raw === '' ? NaN : parseInt(raw, 10) },
                                     }))
+                                  }}
+                                  onBlur={() =>
+                                    setMenuSelections((prev) => {
+                                      const current = prev[item.id]
+                                      if (!current) return prev
+                                      return {
+                                        ...prev,
+                                        [item.id]: {
+                                          ...current,
+                                          servings: Number.isNaN(current.servings) ? 1 : Math.max(1, current.servings),
+                                        },
+                                      }
+                                    })
                                   }
                                   className="w-20 text-xs border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-black"
                                   placeholder="servings"
@@ -1343,6 +1375,7 @@ function AddInterestModal({
                       <span className="text-sm font-semibold text-gray-900">Total</span>
                       <span className="text-sm font-bold text-gray-900">{formatNaira(menuTotal)}</span>
                     </div>
+                    <BudgetWarning amount={menuTotal} categoryBudget={categoryBudget} />
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">
                         Request a discount (optional)
@@ -1399,6 +1432,10 @@ function AddInterestModal({
               onChange={(e) => setOfferAmount(e.target.value)}
               placeholder="e.g. 1500000"
               className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+            />
+            <BudgetWarning
+              amount={offerAmount ? parseInt(offerAmount.replace(/[^0-9]/g, ''), 10) || 0 : 0}
+              categoryBudget={categoryBudget}
             />
             {suggestedOffer && (
               <p className="text-xs text-gray-400 mt-1.5">
@@ -1582,11 +1619,13 @@ export default function VendorsSection({
   guestCount,
   initialCategory,
   budgetBreakdown,
+  initialVendorSlug,
 }: {
   eventId: string
   guestCount?: number | null
   initialCategory?: string
   budgetBreakdown?: BudgetBreakdownItem[]
+  initialVendorSlug?: string
 }) {
   const { token } = useAuth()
   const [vendors, setVendors] = useState<Vendor[]>([])
@@ -1600,10 +1639,36 @@ export default function VendorsSection({
   const [selectedDishes, setSelectedDishes] = useState<Set<string>>(new Set())
   const [styleCatalog, setStyleCatalog] = useState<StyleCatalogItem[]>([])
   const [selectedStyles, setSelectedStyles] = useState<Set<string>>(new Set())
+  const [autoOpenHandled, setAutoOpenHandled] = useState(false)
+  const [autoOpenError, setAutoOpenError] = useState('')
 
   useEffect(() => {
     if (initialCategory) setActiveCategory(initialCategory)
   }, [initialCategory])
+
+  // Deep-link support for "Shortlist" buttons on the vendors browse/detail pages,
+  // which don't have an event context of their own.
+  useEffect(() => {
+    if (!initialVendorSlug || loadingVendors || autoOpenHandled || !token) return
+    setAutoOpenHandled(true)
+    const match = vendors.find((v) => v.slug === initialVendorSlug)
+    if (match) {
+      setAddingVendor(match)
+      return
+    }
+    // Not in this event's recommended list (e.g. different city) — fetch it directly.
+    api
+      .get<Vendor>(`/vendors/${initialVendorSlug}`, token)
+      .then((v) =>
+        setAddingVendor({
+          ...v,
+          menu_item_names: [],
+          style_names: [],
+          is_within_budget: true,
+        }),
+      )
+      .catch(() => setAutoOpenError('Could not load that vendor.'))
+  }, [initialVendorSlug, loadingVendors, vendors, autoOpenHandled, token])
 
   const fetchInterests = useCallback(async () => {
     if (!token) return
@@ -1666,6 +1731,12 @@ export default function VendorsSection({
     setInterests((prev) =>
       prev.map((i) => (i.id === interestId ? { ...i, status: 'cancelled' as const } : i)),
     )
+  }
+
+  const getCategoryBudget = (slug: string | undefined) => {
+    if (!slug) return null
+    const match = budgetBreakdown?.find((b) => BUDGET_CATEGORY_TO_SLUG[b.category] === slug)
+    return match?.amount ?? null
   }
 
   const toggleDish = (dish: string) => {
@@ -1740,6 +1811,12 @@ export default function VendorsSection({
 
   return (
     <div className="space-y-8">
+      {autoOpenError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+          {autoOpenError}
+        </div>
+      )}
+
       {/* ── Shortlist ──────────────────────────────────────────────────────── */}
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-1">Your shortlist</h2>
@@ -1767,6 +1844,7 @@ export default function VendorsSection({
                         key={interest.id}
                         interest={interest}
                         eventId={eventId}
+                        categoryBudget={getCategoryBudget(interest.vendors?.vendor_categories?.slug)}
                         onRemove={removing === interest.id ? () => {} : handleRemove}
                         onCommitted={handleCommitted}
                         onCancelled={handleCancelled}
@@ -1898,11 +1976,7 @@ export default function VendorsSection({
         <AddInterestModal
           vendor={addingVendor}
           eventId={eventId}
-          categoryBudget={(() => {
-            const slug = addingVendor.vendor_categories?.slug
-            const match = budgetBreakdown?.find(b => BUDGET_CATEGORY_TO_SLUG[b.category] === slug)
-            return match?.amount ?? null
-          })()}
+          categoryBudget={getCategoryBudget(addingVendor.vendor_categories?.slug)}
           existingInterests={interests}
           guestCount={guestCount}
           onAdd={handleAdd}

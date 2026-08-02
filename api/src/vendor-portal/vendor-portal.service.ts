@@ -608,6 +608,17 @@ export class VendorPortalService {
       })
       .eq('id', interestId)
 
+    // Free up the vendor's calendar for that date
+    const cancelledEventDate = (interest.events as any)?.event_date
+    if (cancelledEventDate) {
+      await client
+        .from('vendor_availability')
+        .delete()
+        .eq('vendor_id', vendor.id)
+        .eq('date', cancelledEventDate)
+        .eq('status', 'booked')
+    }
+
     // Create cancellation record
     const { data: cancellation, error: ce } = await client
       .from('booking_cancellations')
